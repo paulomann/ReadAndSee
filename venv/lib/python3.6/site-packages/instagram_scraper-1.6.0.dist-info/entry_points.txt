@@ -1,0 +1,3 @@
+[console_scripts]
+instagram-scraper = instagram_scraper.app:main
+
