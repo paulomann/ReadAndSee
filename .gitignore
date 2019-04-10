@@ -1,2 +1,6 @@
 data/*
 instagram_access.env
+src/data/.temp
+*.pyc
+*.log
+venv

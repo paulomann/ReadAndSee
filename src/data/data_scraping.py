@@ -1,38 +1,70 @@
 import argparse
-import os
-from dotenv import load_dotenv, find_dotenv
 import util
-
-root_path = os.path.abspath("")
-questionnaire_path = os.path.join(root_path, "..", "..", "data", "raw",
-                                  "questionnaire.csv")
+from subprocess import Popen
+import os
 
 
-def get_instagram_credentials():
-    env_variables_path = os.path.join(root_path, "..", "..",
-                                      "instagram_access.env")
-    dotenv_path = find_dotenv(env_variables_path)
-    load_dotenv(dotenv_path)
-    instagram_username = os.environ.get("INSTAGRAM_USERNAME")
-    instagram_password = os.environ.get("INSTAGRAM_PASSWORD")
+def scrape_data(login, password, u_file, destination_path):
+    """ Create a console that runs the cmd_string command to scrape data. """
+    cmd_string = 'instagram-scraper -f {0} -d {1} -n -u {2} -p {3} \
+    --retry-forever --media-metadata -t image --profile-metadata'. \
+                 format(u_file, destination_path, login, password)
 
-    return instagram_username, instagram_password
+    cmd_string = cmd_string + r' -T {urlname}'
+
+    process = Popen(cmd_string, shell=True)
+    process.wait()
 
 
-parser = argparse.ArgumentParser(
-    description=""" This is a simple algorithm to scrape Instagram
-                    User data. This algorithm downloads data from
-                    ReadOrSee/data/raw usersnames, excluding
-                    duplicates.""")
+def create_temp_file(usernames):
+    """ Create temporary file with Instagram usernames.
 
-parser.add_argument("--last", help="""This will continue the data
-                                    scraping from the last downloaded
-                                    user.""",
-                    action="store_true",
-                    required=True)
+    We need this in order to feed the cmd_string for as the line argument,
+    since it needs a file path.
 
-args = parser.parse_args()
+    Return:
+    path -- path of the created file
+    """
+    with open(".temp", "w") as f:
+        for item in usernames:
+            f.write("%s\n" % item)
+    return ".temp"
 
-name, pw = get_instagram_credentials()
 
-print(util.get_downloaded_users_list())
+def delete_temp_file(file):
+    os.remove(file)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=""" This is a simple algorithm to scrape Instagram
+                        User data. This algorithm downloads data from
+                        ReadOrSee/data/raw usersnames, excluding
+                        duplicates.""")
+
+    parser.add_argument("--last", help="""This will continue the data
+                                        scraping from the last downloaded
+                                        user.""",
+                        action="store_true",
+                        required=True)
+
+    args = parser.parse_args()
+
+    if args.last:
+        util.load_env_variables()
+        login, password = util.get_instagram_credentials()
+        usernames_to_scrape = util.non_scraped_instagram_users()
+        u_file = create_temp_file(usernames_to_scrape)
+        destination_path = os.path.join(os.path.abspath(""), "..", "..", 
+                                        "data", "external")
+        try:
+            scrape_data(login, password, u_file, destination_path)
+            delete_temp_file(u_file)
+        except KeyboardInterrupt:
+            delete_temp_file(u_file)
+    else:
+        print("Nothing to update.")
+
+
+if __name__ == "__main__":
+    main()
