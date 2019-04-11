@@ -1,6 +1,6 @@
 # Data folder structure
 
-The data is not present in the project due to ethical constraint. Since we are under the approvalof the ethics committee
+The data is not present in the project due to ethical constraint. Since we are under the approval of the ethics committee
 of Universidade Federal Fluminense (UFF), the Instagram data is entirely restricted to the research team. However, here
 we show how we use the folder structure to help the project.
 
