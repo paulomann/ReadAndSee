@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import numpy as np
 import re
+from models import InstagramPost, InstagramProfile
 
 
 class PreProcess:
@@ -26,8 +27,8 @@ class PreProcess:
 
 class RawPreProcess(PreProcess):
 
-    """ This is a helper class to manipulate Input dataframes, pre-processing
-    them, producing three output dataframes:
+    """ This is a helper class to manipulate the questionnaire dataframe,
+    pre-processing it, producing three output dataframes:
 
     _out_instagram_df -- DataFrame whose participants contain valid instagram
     usernames.
@@ -197,3 +198,36 @@ class RawPreProcess(PreProcess):
         self._out_all_participants_df = df
 
         return instagram_df, twitter_df
+
+
+class InstagramExternalPreProcess(PreProcess):
+
+    """
+    Helper class for preprocessing the external data for instagram posts. It
+    opens the external instagram users data.
+
+    Return:
+    _out_instagram_df -- The final, canonical dataset for the instagram sample.
+        The dataset contains all users that are fed to the machine learning
+        models.
+    _stratified_hdf_list -- A list of n stratified datasets samples
+    """
+
+    def __init__(self):
+        super().__init__()
+        self._out_instagram_df = None
+        self._stratified_hdf_list = []
+
+    def load_data(self):
+        root_path = os.path.abspath("")
+        all_users = os.path.join(root_path, "..", "..", "data", "external",
+                                 "instagram")
+        for root, dirs, files in os.walk(all_users):
+            
+
+
+    def preprocess(self):
+        pass
+
+    def save_processed(self):
+        pass

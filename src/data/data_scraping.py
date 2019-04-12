@@ -56,7 +56,7 @@ def main():
         usernames_to_scrape = util.non_scraped_instagram_users()
         u_file = create_temp_file(usernames_to_scrape)
         destination_path = os.path.join(os.path.abspath(""), "..", "..", 
-                                        "data", "external")
+                                        "data", "external", "instagram")
         try:
             scrape_data(login, password, u_file, destination_path)
             delete_temp_file(u_file)

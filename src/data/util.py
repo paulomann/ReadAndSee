@@ -6,7 +6,8 @@ from preprocessing import RawPreProcess
 def scraped_users_list():
     """ Return a set of scrapped Instagram usernames. """
     root_path = os.path.abspath("")
-    data_path = os.path.join(root_path, "..", "..", "data", "external")
+    data_path = os.path.join(root_path, "..", "..", "data", "external",
+                             "instagram")
     return set(os.listdir(data_path))
 
 
