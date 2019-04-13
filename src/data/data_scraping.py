@@ -1,5 +1,5 @@
 import argparse
-import util
+import controller
 from subprocess import Popen
 import os
 
@@ -51,9 +51,9 @@ def main():
     args = parser.parse_args()
 
     if args.last:
-        util.load_env_variables()
-        login, password = util.get_instagram_credentials()
-        usernames_to_scrape = util.non_scraped_instagram_users()
+        controller.load_env_variables()
+        login, password = controller.get_instagram_credentials()
+        usernames_to_scrape = controller.non_scraped_instagram_users()
         u_file = create_temp_file(usernames_to_scrape)
         destination_path = os.path.join(os.path.abspath(""), "..", "..", 
                                         "data", "external", "instagram")
