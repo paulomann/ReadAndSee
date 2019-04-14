@@ -60,6 +60,9 @@ class Participant:
         self.username = username
         self.posts = posts
 
+    def get_answer_dict(self):
+        return self.questionnaire.answer_dict
+
 
 class InstagramUser(Participant):
 
@@ -81,6 +84,22 @@ class InstagramUser(Participant):
         self.following_count = following_count
         self.is_private = is_private
         self.posts_count = posts_count
+
+    def get_answer_dict(self):
+        """ Return the questionnaire dict with appended Instagram data.
+
+        Also return the keys of the new appended dict.
+
+        Return:
+        qtnre -- New questionnaire dict, with appended data
+        cols -- Appended Data keys
+        """
+        instagram_user_data = dict(followers_count=self.followers_count,
+                                   following_count=self.following_count,
+                                   posts_count=self.posts_count)
+        qtnre = super().get_answer_dict().copy()
+        qtnre.update(instagram_user_data)
+        return qtnre, list(instagram_user_data.keys())
 
 
 class InstagramPost:

@@ -16,14 +16,17 @@ class PreProcess:
     def __init__(self):
         pass
 
-    def load_data(self):
-        pass
+    def _load_data(self):
+        raise NotImplementedError
 
     def preprocess(self):
-        pass
+        raise NotImplementedError
 
     def save_processed(self):
-        pass
+        raise NotImplementedError
+
+    def get_processed_data(self):
+        raise NotImplementedError
 
 
 class RawPreProcess(PreProcess):
@@ -42,16 +45,17 @@ class RawPreProcess(PreProcess):
     def __init__(self):
         """ Initialize all dataframes used in this class. """
         super().__init__()
-        self.dataframe = self.load_data()
+        self.dataframe = self._load_data()
         self._out_instagram_df = None
         self._out_twitter_df = None
         self._out_all_participants_df = None
 
     def preprocess(self):
+        print("Preprocessing raw data...")
         """ Preprocess the questionnaire data to normalize it. """
         return self._preprocess_questionnaire(self.dataframe.copy())
 
-    def load_data(self):
+    def _load_data(self):
         """ Return the questionnaire DataFrame. """
         root_path = os.path.abspath("")
         data_path = os.path.join(root_path, "..", "..",
@@ -71,6 +75,11 @@ class RawPreProcess(PreProcess):
         self._save_dataframe(self._out_twitter_df, "twitter.csv")
         self._save_dataframe(self._out_all_participants_df,
                              "all_participants.csv")
+        return (self._out_instagram_df, self._out_twitter_df,
+                self._out_all_participants_df)
+
+    def get_processed_data(self):
+        raise NotImplementedError
 
     def _get_number(self, choice):
         pattern = re.compile(r"(\d)(\.|\w)", re.UNICODE)
@@ -223,44 +232,48 @@ class InstagramExternalPreProcess(PreProcess):
         self._valid_participants = None
         self._stratified_hdf_list = None
 
-    def load_data(self):
-        """ Load all instagram posts from all participants with valid and open
-        instagram profiles. Only users with at least 1 post are considered in
-        this study.
+    def preprocess(self):
+        """ Load and preprocess all instagram posts from all participants
+        (external folder) with valid and open instagram profiles. Only users
+        with at least 1 post are considered in this study.
 
         Return:
-        self._valid_participants -- All valid participants (at least 1 post)
+        valid_participants -- All valid participants (at least 1 post)
         blocked_profiles -- All blocked instagram profiles
         """
+        print("Preprocessing external data...")
         base_path = os.path.abspath("")
-        root_path = os.path.join(base_path, "..", "..", "data", "external",
-                                 "instagram")
+        data_folder = os.path.join(base_path, "..", "..", "data", "external",
+                                   "instagram")
         answers_df = self._load_instagram_questionnaire_answers()
 
         blocked_profiles = []
         self._valid_participants = []
 
-        for root, dirs, files in os.walk(root_path):
+        for user in self._load_data(data_folder):
 
-            username = os.path.basename(root)
-            user_json = self._get_user_json(root, username)
-
-            if self._has_at_least_one_post(user_json):
+            if self._has_at_least_one_post(user["json"]):
                 instagram_user, instagram_posts = self._get_instagram_models(
-                    os.path.join(root), username, user_json, answers_df)
+                    os.path.join(user["folder_path"]), user["username"],
+                    user["json"], answers_df)
 
                 if (instagram_user is None) or (instagram_posts is None):
-                    print("User {} has no posts or profile info."
-                          .format(username))
-                    blocked_profiles.append(username)
+                    blocked_profiles.append(user["username"])
                 else:
                     self._valid_participants.append(instagram_user)
             else:
-                blocked_profiles.append(username)
+                blocked_profiles.append(user["username"])
 
         blocked_profiles.remove("instagram")
 
         return self._valid_participants, blocked_profiles
+
+    def _load_data(self, data_folder):
+        for root, dirs, files in os.walk(data_folder):
+            username = os.path.basename(root)
+            user_json = self._get_user_json(root, username)
+            data = dict(json=user_json, username=username, folder_path=root)
+            yield data
 
     def _load_instagram_questionnaire_answers(self):
         base_path = os.path.abspath("")
@@ -283,10 +296,7 @@ class InstagramExternalPreProcess(PreProcess):
             user_json = json.loads(user_json)
 
         except Exception:
-
             user_json = None
-            print("Failed to get json file ({}) :"
-                  .format(os.path.basename(json_path)))
 
         return user_json
 
@@ -353,8 +363,6 @@ class InstagramExternalPreProcess(PreProcess):
         imgs_paths = self._process_post_images(root_path, post)
 
         if not imgs_paths:
-            print("There is no image for user {}."
-                  .format(os.path.basename(root_path)))
             return None
 
         likes_count = post.get("edge_media_preview_like").get("count", 0)
@@ -416,9 +424,6 @@ class InstagramExternalPreProcess(PreProcess):
                              instagram_posts)
         return user
 
-    def preprocess(self):
-        pass
-
     def _save_valid_user_profiles(self, valid_participants):
         """ Valid user profiles are (1) open profiles, and (2) profiles with
         at least one post."""
@@ -437,11 +442,12 @@ class InstagramExternalPreProcess(PreProcess):
 
         questionnaire_answers = []
         for profile in valid_participants:
-            answer_dict = profile.questionnaire.answer_dict
+            # answer_dict = profile.questionnaire.answer_dict
+            answer_dict, keys = profile.get_answer_dict()
             questionnaire_answers.append(answer_dict)
 
         self._out_instagram_df = pd.DataFrame(questionnaire_answers,
-                                              columns=cols_order)
+                                              columns=cols_order + keys)
         self._out_instagram_df.to_csv(canonical_csv_path, index=False)
         return self._out_instagram_df
 
@@ -450,6 +456,71 @@ class InstagramExternalPreProcess(PreProcess):
         if self._valid_participants:
             return self._save_valid_user_profiles(self._valid_participants)
 
+    def get_processed_data(self):
+        raise NotImplementedError
 
-iepp = InstagramExternalPreProcess()
-valid_participants, blocked_profiles = iepp.load_data()
+
+class StratifiedGA:
+
+    """ """
+
+    def __init__(self):
+        raise NotImplementedError
+
+
+class PreProcessCOR:
+
+    """ Chain-of-responsibility pattern class to abstract the idea of processing
+    various preprocessing steps, in order.
+
+    """
+
+    def __init__(self, pre_processors=None):
+        """ Receives the preprocessors, needs to be ordered in a way that each
+        steps precedes the next in the preprocessing pipeline.
+
+        Params:
+            pre_processors -- A list of PreProcess subclass instances
+        """
+        self._pre_processors = list()
+        if pre_processors is not None:
+            self._pre_processors += pre_processors
+
+    def process_pipeline(self, save):
+        """ Preprocess pipeline and return the last processed data, if any. """
+        final_dataset = None
+        for pre_process in self._pre_processors:
+            pre_process.preprocess()
+            if save:
+                final_dataset = pre_process.save_processed()
+        return final_dataset
+
+
+def preprocess_pipeline(process_method="raw", save=True):
+    """ Preprocess pipeline and return the last generated dataset in
+    the pipeline
+
+    Params:
+        process_method -- 'complete' for the entire preprocessing pipeline,
+                          'raw' to only preprocess the raw data
+                          'external' to only preprocess the external data
+        save -- True if you want to save the processed data
+                False otherwise
+
+    Return:
+        data -- if the process is successful, the data will be returned.
+                if save = False, then no data will be returned.
+    """
+    if process_method == "complete":
+        pipeline = [RawPreProcess(), InstagramExternalPreProcess()]
+    elif process_method == "raw":
+        pipeline = [RawPreProcess()]
+    elif process_method == "external":
+        pipeline = [InstagramExternalPreProcess()]
+    else:
+        print("Invalid pipeline name.")
+        return None
+
+    ppf = PreProcessCOR(pre_processors=pipeline)
+    final_data = ppf.process_pipeline(save)
+    return final_data

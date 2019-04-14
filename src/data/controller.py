@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv, find_dotenv
-from preprocessing import RawPreProcess
+import preprocessing
 
 
 def scraped_users_list():
@@ -40,7 +40,8 @@ def _get_all_instagram_users():
     Side effect:
     1. Update the interim/ folder with new preprocessed data
     """
-    rpp = RawPreProcess()
-    instagram_df, _ = rpp.preprocess()
-    rpp.save_processed()
+    instagram_df, _, _ = preprocessing.preprocess_pipeline("raw")
+    if instagram_df.empty:
+        print("Result from raw preprocessing is empty.")
+        raise Exception
     return set(instagram_df["instagram_user_name"])
