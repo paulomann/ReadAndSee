@@ -8,6 +8,9 @@ we show how we use the folder structure to complete the project.
 data
 │   README.md
 │
+|───raw                                <- The original, immutable data dump (questionnaire data).
+|   |   questionnaire.csv
+|   |
 └───external                           <- Data from third party sources (Instagram posts)
 │   │   [user_1, user_2, ... , user_n] <- A list of folders containing Instagram posts data for each user
 │   │
@@ -17,11 +20,9 @@ data
 |   |   all_participants.csv           <- All data from all users
 │   
 └───processed                          <- The final, canonical data sets for modeling.
-|   │   TODO
+|   │   instagram.csv                  <- Users in which their profile has at least 1 public post available
 |   │   TODO
 |   |
-|───raw                                <- The original, immutable data dump (questionnaire data).
-|   |   questionnaire.csv
 ```
 
 \* "Valid" usernames do not contain *spaces*, are not *digits*, and has at least *length 1*
