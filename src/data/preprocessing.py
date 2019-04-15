@@ -478,11 +478,50 @@ class InstagramExternalPreProcess(PreProcess):
         return data
 
 
-class StratifiedGA:
+class TabuSearch:
 
-    """ """
+    """ TabuSearch to stratify the dataset."""
 
+    def __init__(self, n_splits, tr_size, te_size, val_size):
+        self.n_splits = n_splits
+        self.tr_size = tr_size
+        self.te_size = te_size
+        self.val_size = val_size
+        raise NotImplementedError
+
+    def _fitness():
+        raise NotImplementedError
+
+    def _get_neighbors():
+        raise NotImplementedError
+
+    def _stopping_condition():
+        raise NotImplementedError
+
+    def stratify(participants):
+        best = None
+        best_neighbor = None
+        tabuList = None
+
+        #while not self._stopping_condition():
+
+
+
+class GeneticAlgorithm:
+    """ Genetic Algorithm to stratify the dataset."""
     def __init__(self):
+        raise NotImplementedError
+
+    def _fitness():
+        raise NotImplementedError
+
+    def _mutation():
+        raise NotImplementedError
+
+    def _crossover():
+        raise NotImplementedError
+
+    def stratify(participants):
         raise NotImplementedError
 
 
