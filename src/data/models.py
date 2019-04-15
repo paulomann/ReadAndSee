@@ -23,22 +23,24 @@ class Questionnaire:
         self.antidepressants = answer_dict["antidepressants"]
         self.twitter_user_name = answer_dict["twitter_user_name"]
         self.instagram_user_name = answer_dict["instagram_user_name"]
-        self.BDI = answer_dict["BDI"]
+        self._bdi = answer_dict["BDI"]
         self.answer_dict = answer_dict
 
-    def get_bdi_sum(self):
-        return self.BDI
-
-    def get_bdi_category(self):
-        """ Return the bdi category as a discrete category value.
+    def get_bdi(self, category=True):
+        """ Return the bdi category as a discrete category value if category
+        is True, or the BDI original value if category is False.
 
         Return:
         0 -- for BDI less than 14 (minimal)
         1 -- for BDI greater or equal than 14 and less than 20 (mild)
         2 -- for BDI greater or equal than 20 and less than 29 (moderate)
         3 -- for BDI greater or equal 29 (severe)
+
+        Or the BDI itself if category = False
         """
-        n = self.BDI
+        if not category:
+            return self._bdi
+        n = self._bdi
         if n < 14:
             return 0
         elif n >= 14 and n < 20:
@@ -118,7 +120,7 @@ class InstagramPost:
         instagram_user -- Object from InstagramUser class.
         img_paths -- A list of image paths related to a post
         """
-        self._img_path_list = img_path_list
+        self._img_path_list = img_path_list if img_path_list else []
         # self.pics_ids = None # TODO: Derivated attribute from img_paths
         self.caption = caption
         self.likes_count = likes_count
