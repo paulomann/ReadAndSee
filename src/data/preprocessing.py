@@ -6,6 +6,10 @@ import json
 from models import InstagramPost, InstagramUser, Questionnaire
 
 
+class PreProcessingError(Exception):
+    pass
+
+
 class PreProcess:
 
     """This is a superclass abstraction to preprocess data, in order to
@@ -23,9 +27,6 @@ class PreProcess:
         raise NotImplementedError
 
     def save_processed(self):
-        raise NotImplementedError
-
-    def get_processed_data(self):
         raise NotImplementedError
 
 
@@ -75,11 +76,12 @@ class RawPreProcess(PreProcess):
         self._save_dataframe(self._out_twitter_df, "twitter.csv")
         self._save_dataframe(self._out_all_participants_df,
                              "all_participants.csv")
-        return (self._out_instagram_df, self._out_twitter_df,
-                self._out_all_participants_df)
 
-    def get_processed_data(self):
-        raise NotImplementedError
+        data = dict(instagram_df=self._out_instagram_df,
+                    twitter_df=self._out_twitter_df,
+                    all_participants_df=self._out_all_participants_df)
+
+        return data
 
     def _get_number(self, choice):
         pattern = re.compile(r"(\d)(\.|\w)", re.UNICODE)
@@ -177,6 +179,7 @@ class RawPreProcess(PreProcess):
         Return:
         instagram_df -- Instagram dataframe
         twitter_df -- Twitter dataframe
+        all_participants_df -- All participants dataframe
         """
         df.iloc[:, 24:45] = df.iloc[:, 24:45].applymap(self._get_number)
         df["BDI"] = df.iloc[:, 24:45].apply(np.sum, axis=1)
@@ -208,7 +211,11 @@ class RawPreProcess(PreProcess):
         self._out_twitter_df = twitter_df
         self._out_all_participants_df = df
 
-        return instagram_df, twitter_df
+        data = dict(instagram_df=self._out_instagram_df,
+                    twitter_df=self._out_twitter_df,
+                    all_participants_df=self._out_all_participants_df)
+
+        return data
 
 
 class InstagramExternalPreProcess(PreProcess):
@@ -231,6 +238,7 @@ class InstagramExternalPreProcess(PreProcess):
         self._out_instagram_df = None
         self._valid_participants = None
         self._stratified_hdf_list = None
+        self._blocked_profiles = None
 
     def preprocess(self):
         """ Load and preprocess all instagram posts from all participants
@@ -247,7 +255,7 @@ class InstagramExternalPreProcess(PreProcess):
                                    "instagram")
         answers_df = self._load_instagram_questionnaire_answers()
 
-        blocked_profiles = []
+        self._blocked_profiles = []
         self._valid_participants = []
 
         for user in self._load_data(data_folder):
@@ -258,15 +266,21 @@ class InstagramExternalPreProcess(PreProcess):
                     user["json"], answers_df)
 
                 if (instagram_user is None) or (instagram_posts is None):
-                    blocked_profiles.append(user["username"])
+                    self._blocked_profiles.append(user["username"])
                 else:
                     self._valid_participants.append(instagram_user)
             else:
-                blocked_profiles.append(user["username"])
+                self._blocked_profiles.append(user["username"])
 
-        blocked_profiles.remove("instagram")
+        self._blocked_profiles.remove("instagram")
+        self._out_instagram_df = self._create_instagram_df(
+                                            self._valid_participants)
 
-        return self._valid_participants, blocked_profiles
+        data = dict(valid_participants=self._valid_participants,
+                    blocked_profiles=self._blocked_profiles,
+                    instagram_df=self._out_instagram_df)
+
+        return data
 
     def _load_data(self, data_folder):
         for root, dirs, files in os.walk(data_folder):
@@ -424,9 +438,12 @@ class InstagramExternalPreProcess(PreProcess):
                              instagram_posts)
         return user
 
-    def _save_valid_user_profiles(self, valid_participants):
+    def _create_instagram_df(self, valid_participants):
         """ Valid user profiles are (1) open profiles, and (2) profiles with
         at least one post."""
+
+        if not valid_participants:
+            raise PreProcessingError
 
         def get_original_csv_cols_order():
             """ Get the original answers cols order to keep it normalized
@@ -435,29 +452,30 @@ class InstagramExternalPreProcess(PreProcess):
             cols_order = qtnre_answers.columns.tolist()
             return cols_order
 
-        base_path = os.path.abspath("")
-        canonical_csv_path = os.path.join(base_path, "..", "..", "data",
-                                          "processed", "instagram.csv")
         cols_order = get_original_csv_cols_order()
 
         questionnaire_answers = []
         for profile in valid_participants:
-            # answer_dict = profile.questionnaire.answer_dict
             answer_dict, keys = profile.get_answer_dict()
             questionnaire_answers.append(answer_dict)
 
         self._out_instagram_df = pd.DataFrame(questionnaire_answers,
                                               columns=cols_order + keys)
-        self._out_instagram_df.to_csv(canonical_csv_path, index=False)
+
         return self._out_instagram_df
 
     def save_processed(self):
         """ TODO: finish this function """
-        if self._valid_participants:
-            return self._save_valid_user_profiles(self._valid_participants)
+        base_path = os.path.abspath("")
+        canonical_csv_path = os.path.join(base_path, "..", "..", "data",
+                                          "processed", "instagram.csv")
+        self._out_instagram_df.to_csv(canonical_csv_path, index=False)
 
-    def get_processed_data(self):
-        raise NotImplementedError
+        data = dict(valid_participants=self._valid_participants,
+                    blocked_profiles=self._blocked_profiles,
+                    instagram_df=self._out_instagram_df)
+
+        return data
 
 
 class StratifiedGA:

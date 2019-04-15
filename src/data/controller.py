@@ -40,7 +40,8 @@ def _get_all_instagram_users():
     Side effect:
     1. Update the interim/ folder with new preprocessed data
     """
-    instagram_df, _, _ = preprocessing.preprocess_pipeline("raw")
+    data = preprocessing.preprocess_pipeline("raw")
+    instagram_df = data["instagram_df"]
     if instagram_df.empty:
         print("Result from raw preprocessing is empty.")
         raise Exception
