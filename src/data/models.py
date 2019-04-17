@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta
+
+
 class Questionnaire:
     """ Model that takes all information from a participant answer to the
     research questionnaire
@@ -5,6 +8,9 @@ class Questionnaire:
     def __init__(self, answer_dict):
         """ Every date attribute is according to this pattern: YYY-MM-DD """
         self.form_application_date = answer_dict["form_application_date"]
+        self.form_application_date = datetime.strptime(
+                                            self.form_application_date,
+                                            "%Y-%m-%d").date()
         self.email = answer_dict["email"]
         self.sex = answer_dict["sex"]
         self.birth_date = answer_dict["birth_date"]
@@ -50,6 +56,17 @@ class Questionnaire:
         else:
             return 3
 
+    def get_binary_bdi(self):
+        """ Return the bdi category in a binary spectrum.
+
+        Return:
+        0 --- for BDI less then 20
+        1 --- for BDI greater or equal than 20
+        """
+        if self._bdi < 20:
+            return 0
+        return 1
+
 
 class Participant:
     """ The generalization of a participant of our study.
@@ -64,6 +81,17 @@ class Participant:
 
     def get_answer_dict(self):
         return self.questionnaire.answer_dict
+
+    def get_posts_from_qtnre_answer_date(self, days):
+        """ Return all posts made 'days' before the answer date to the
+        questionnaire. """
+        bdi_answer_date = self.questionnaire.form_application_date
+        delta = bdi_answer_date - timedelta(days=days)
+        posts_in_range = []
+        for post in self.posts:
+            if post.date.date() > delta:
+                posts_in_range.append(post)
+        return posts_in_range
 
 
 class InstagramUser(Participant):
@@ -120,20 +148,21 @@ class InstagramPost:
         instagram_user -- Object from InstagramUser class.
         img_paths -- A list of image paths related to a post
         """
-        self._img_path_list = img_path_list if img_path_list else []
-        # self.pics_ids = None # TODO: Derivated attribute from img_paths
+        self._img_path_list = img_path_list
         self.caption = caption
         self.likes_count = likes_count
-        self.timestamp = timestamp
+        # This date is composed of date and time part.
+        self.date = datetime.fromtimestamp(timestamp)
         self.comments_count = comments_count
         self._face_count_list = []
         # self.face_presence = True if face_count > 0 else False
 
     def get_img_path_list(self):
-        if len(self._face_count_list) == len(self._img_path_list):
-            return self._img_path_list
-        else:
-            return None
+        return self._img_path_list
+        # if len(self._face_count_list) == len(self._img_path_list):
+        #     return self._img_path_list
+        # else:
+        #     return None
 
     def get_face_count_list(self):
         if len(self._face_count_list) == len(self._img_path_list):
