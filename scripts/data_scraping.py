@@ -1,10 +1,12 @@
 import argparse
-import controller
 from subprocess import Popen
 import os
+from readorsee.data import facade
 
 
-def scrape_data(login, password, u_file, destination_path):
+def scrape_data(instagram_scraper, u_file, destination_path):
+    login = instagram_scraper.login
+    password = instagram_scraper.password
     """ Create a console that runs the cmd_string command to scrape data. """
     cmd_string = 'instagram-scraper -f {0} -d {1} -n -u {2} -p {3} \
     --retry-forever --media-metadata -t image --profile-metadata'. \
@@ -51,14 +53,14 @@ def main():
     args = parser.parse_args()
 
     if args.last:
-        controller.load_env_variables()
-        login, password = controller.get_instagram_credentials()
-        usernames_to_scrape = controller.non_scraped_instagram_users()
+        instagram_scraper = facade.InstagramScraperFacade()
+        usernames_to_scrape = instagram_scraper.get_non_scraped_users()
         u_file = create_temp_file(usernames_to_scrape)
-        destination_path = os.path.join(os.path.abspath(""), "..", "..", 
-                                        "data", "external", "instagram")
+        root_path = os.path.abspath(__file__)
+        destination_path = os.path.join(root_path, "..", "..", "data",
+                                        "external", "instagram")
         try:
-            scrape_data(login, password, u_file, destination_path)
+            scrape_data(instagram_scraper, u_file, destination_path)
             delete_temp_file(u_file)
         except KeyboardInterrupt:
             delete_temp_file(u_file)
