@@ -4,3 +4,4 @@ src/data/.temp
 *.pyc
 *.log
 env
+*.ipynb
