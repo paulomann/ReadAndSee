@@ -20,9 +20,11 @@ data
 |   |   all_participants.csv           <- All data from all users
 │   
 └───processed                          <- The final, canonical data sets for modeling.
-|   │   instagram.csv                  <- Users in which their profile has at least 1 public post available
-|   │   TODO
-|   |
+|   │   stratified_data.pickle         <- Users in which their profile has at least 1 public post available.
+|   |                                     We also save 10 datasets for each observation period considered in
+                                          this file, in a stratified fashion (over category for train, val or
+                                          test set; and also for examples quantity for each set, typically set
+                                          60% for train, 20% for val and 20% for test)
 ```
 
 \* "Valid" usernames do not contain *spaces*, are not *digits*, and has at least *length 1*
