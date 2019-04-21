@@ -226,14 +226,12 @@ class InstagramExternalPreProcess(PreProcess):
         models, it is as csv file, and only contains _valid_participants data.
     _valid_participants -- A list of InstagramUser models that contains only
         valid users (open profiles, and contain at least 1 post)
-    _stratified_hdf_list -- A list of n stratified datasets samples
     """
 
     def __init__(self):
         super().__init__()
         self._out_instagram_df = None
         self._valid_participants = None
-        self._stratified_hdf_list = None
         self._blocked_profiles = None
 
     def preprocess(self):
@@ -457,10 +455,6 @@ class InstagramExternalPreProcess(PreProcess):
         return self._out_instagram_df
 
     def save_processed(self):
-        """ TODO: finish this function """
-        canonical_csv_path = os.path.join(config.PATH_TO_PROCESSED_DATA,
-                                          "instagram.csv")
-        self._out_instagram_df.to_csv(canonical_csv_path, index=False)
 
         data = dict(participants=self._valid_participants,
                     blocked_profiles=self._blocked_profiles,

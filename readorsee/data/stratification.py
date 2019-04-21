@@ -177,8 +177,15 @@ class LocalSearch:
         bdi_fraction = {0: 0, 1: 0}
         for participant in subset:
             posts = participant.get_posts_from_qtnre_answer_date(self._days)
-            qty = len(posts)
+            # qty = len(posts)
+            qty = self._get_total_number_of_images(posts)
             bdi = participant.questionnaire.get_binary_bdi()
             bdi_fraction[bdi] += qty
 
         return bdi_fraction, (bdi_fraction[0] + bdi_fraction[1])
+
+    def _get_total_number_of_images(self, posts):
+        total = 0
+        for p in posts:
+            total += len(p.get_img_path_list())
+        return total

@@ -159,10 +159,6 @@ class InstagramPost:
 
     def get_img_path_list(self):
         return self._img_path_list
-        # if len(self._face_count_list) == len(self._img_path_list):
-        #     return self._img_path_list
-        # else:
-        #     return None
 
     def get_face_count_list(self):
         if len(self._face_count_list) == len(self._img_path_list):
