@@ -386,6 +386,8 @@ class InstagramExternalPreProcess(PreProcess):
         post = InstagramPost(imgs_paths, caption, likes_count, timestamp,
                              comments_count)
 
+        post.calculate_face_count_list()
+
         return post
 
     def _process_post_images(self, root_path, post):

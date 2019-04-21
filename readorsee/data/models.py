@@ -1,4 +1,7 @@
 from datetime import datetime, timedelta
+import face_recognition
+from readorsee.data import config
+import os
 
 
 class Questionnaire:
@@ -161,10 +164,7 @@ class InstagramPost:
         return self._img_path_list
 
     def get_face_count_list(self):
-        if len(self._face_count_list) == len(self._img_path_list):
-            return self._face_count_list
-        else:
-            return None
+        return self._face_count_list
 
     def calculate_face_count_list(self):
         """ Calculate face count for each picture in the post.
@@ -174,17 +174,19 @@ class InstagramPost:
         False -- Otherwise
         """
         self.face_count_list = []
-        for img_path in self.img_paths_list:
+        for img_path in self._img_path_list:
             img = self._load_image(img_path)
             face_count = self._get_face_count(img)
+            if face_count > 20:
+                face_count = 0
+            print(face_count)
             self.face_count_list.append(face_count)
-        if len(self.face_count_list) == len(self.img_path_list):
-            return True
-        return False
 
     def _load_image(self, image_path):
-        return face_recognition.load_image_file(image_path)
+        path_to_file = os.path.join(config.PATH_TO_INSTAGRAM_DATA, image_path)
+        print(os.path.abspath(path_to_file))
+        return face_recognition.load_image_file(path_to_file)
 
     def _get_face_count(self, image):
-        face_locations = face_recognition.face_locations(image)
+        face_locations = face_recognition.face_locations(image, model="cnn")
         return len(face_locations)

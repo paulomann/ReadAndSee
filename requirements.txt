@@ -4,9 +4,12 @@ bleach==3.1.0
 certifi==2019.3.9
 chardet==3.0.4
 Click==7.0
+cmake==3.13.3
 decorator==4.4.0
 defusedxml==0.6.0
+dlib==19.17.0
 entrypoints==0.3
+face-recognition==1.2.3
 face-recognition-models==0.3.0
 idna==2.8
 instagram-scraper==1.6.0
@@ -44,7 +47,7 @@ python-dotenv==0.10.1
 pytz==2019.1
 pyzmq==18.0.1
 qtconsole==4.4.3
--e git+https://github.com/Greenbald/ReadOrSee.git@990ae1077065ee697cb7f416731cf950aa41f6c4#egg=readorsee
+-e git+https://github.com/Greenbald/ReadOrSee.git@66a86f099335b881db10df0eeed5579c7fc2bf27#egg=readorsee
 requests==2.21.0
 Send2Trash==1.5.0
 six==1.12.0
