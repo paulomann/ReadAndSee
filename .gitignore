@@ -5,3 +5,4 @@ src/data/.temp
 *.log
 env
 *.ipynb
+readorsee.egg-info
