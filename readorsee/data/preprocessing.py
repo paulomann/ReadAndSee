@@ -410,7 +410,8 @@ class InstagramExternalPreProcess(PreProcess):
         for pid in pic_ids:
             image_path = os.path.join(root_path, pid)
             if os.path.isfile(image_path):
-                img_path_list.append(image_path)
+                img_path = os.path.join(os.path.basename(root_path), pid)
+                img_path_list.append(img_path)
 
         return img_path_list
 
