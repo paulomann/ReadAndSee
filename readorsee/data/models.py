@@ -127,9 +127,11 @@ class InstagramUser(Participant):
         qtnre -- New questionnaire dict, with appended data
         cols -- Appended Data keys
         """
+        binary_bdi = self.questionnaire.get_binary_bdi()
         instagram_user_data = dict(followers_count=self.followers_count,
                                    following_count=self.following_count,
-                                   posts_count=self.posts_count)
+                                   posts_count=self.posts_count,
+                                   binary_bdi=binary_bdi)
         qtnre = super().get_answer_dict().copy()
         qtnre.update(instagram_user_data)
         return qtnre, list(instagram_user_data.keys())
@@ -173,18 +175,16 @@ class InstagramPost:
         True -- If the face_count_list is the same size as the img_path_list
         False -- Otherwise
         """
-        self.face_count_list = []
+        self._face_count_list = []
         for img_path in self._img_path_list:
             img = self._load_image(img_path)
             face_count = self._get_face_count(img)
             if face_count > 20:
                 face_count = 0
-            print(face_count)
-            self.face_count_list.append(face_count)
+            self._face_count_list.append(face_count)
 
     def _load_image(self, image_path):
         path_to_file = os.path.join(config.PATH_TO_INSTAGRAM_DATA, image_path)
-        print(os.path.abspath(path_to_file))
         return face_recognition.load_image_file(path_to_file)
 
     def _get_face_count(self, image):
