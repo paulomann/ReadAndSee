@@ -190,3 +190,10 @@ class InstagramPost:
     def _get_face_count(self, image):
         face_locations = face_recognition.face_locations(image, model="cnn")
         return len(face_locations)
+
+    def get_dict_representation(self):
+        fce_cnt_mean = sum(self._face_count_list)//len(self._face_count_list)
+        data_dict = dict(caption=self.caption, likes_count=self.likes_count,
+                         date=self.date, comments_count=self.comments_count,
+                         face_count=fce_cnt_mean)
+        return data_dict

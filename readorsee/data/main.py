@@ -6,6 +6,7 @@ from readorsee.data import facade
 # sf.save()
 
 # Load and check data
-mf = facade.DataFacade()
-dfs = mf.get_participants_dataframes()
-data = facade.StratifyFacade("").load_stratified_data()
+dl = facade.DataLoader()
+user_dfs = dl.get_participants_dataframes()
+raw_data = dl.load_raw_data()
+posts_dfs = dl.get_posts_dataframes()

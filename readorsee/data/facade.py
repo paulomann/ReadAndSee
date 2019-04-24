@@ -141,7 +141,50 @@ class InstagramScraperFacade:
         return set(instagram_df["instagram_user_name"])
 
 
-class DataFacade:
+class DataLoader:
+
+    def __init__(self):
+        self._raw = None
+        self._user_dfs = {}
+        self._posts_dfs = {}
+
+    @property
+    def raw(self):
+        return self._raw
+
+    @property
+    def user_dfs(self):
+        return self._user_dfs
+
+    def get_posts_dataframes(self):
+        self.load_raw_data()
+
+        self._posts_dfs = {}
+        for k, v in self._raw.items():
+            self._posts_dfs[k] = []
+            for dset in self._raw[k]:
+                train = self.get_user_posts_dfs(dset[0])
+                val = self.get_user_posts_dfs(dset[1])
+                test = self.get_user_posts_dfs(dset[2])
+                final_df = pd.concat([train, val, test],
+                                     keys=["train", "val", "test"])
+                self._posts_dfs[k].append(final_df)
+        return self._posts_dfs
+
+    def get_user_posts_dfs(self, user_list):
+        posts_dicts = []
+        for u in user_list:
+            for post in u.posts:
+                d = post.get_dict_representation()
+                d["instagram_username"] = u.username
+                d["binary_bdi"] = u.questionnaire.get_binary_bdi()
+                d["BDI"] = u.questionnaire.get_bdi(False)
+                posts_dicts.append(d)
+        return pd.DataFrame(posts_dicts)
+
+    def load_raw_data(self):
+        self._raw = StratifyFacade("").load_stratified_data()
+        return self._raw
 
     def get_participants_dataframes(self):
         """ Return 10 dataframes for each period considered
@@ -152,20 +195,20 @@ class DataFacade:
             each key contains a list of K generated datasets, which for this
             study are 10.
         """
-        data = StratifyFacade("").load_stratified_data()
+        self.load_raw_data()
 
-        dataframes = {}
-        for key, value in data.items():
-            dataframes[key] = []
-            for dataset in data[key]:
+        self._user_dfs = {}
+        for key, value in self._raw.items():
+            self._user_dfs[key] = []
+            for dataset in self._raw[key]:
                 train = dataset[0]
                 val = dataset[1]
                 test = dataset[2]
-                df = self._create_instagram_df(train, val, test)
-                dataframes[key].append(df)
-        return dataframes
+                df = self._create_instagram_user_df(train, val, test)
+                self._user_dfs[key].append(df)
+        return self._user_dfs
 
-    def _create_instagram_df(self, train, val, test):
+    def _create_instagram_user_df(self, train, val, test):
         """ Valid user profiles are (1) open profiles, and (2) profiles with
         at least one post."""
 
