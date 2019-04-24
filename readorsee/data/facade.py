@@ -157,6 +157,10 @@ class DataLoader:
     def user_dfs(self):
         return self._user_dfs
 
+    @property
+    def posts_dfs(self):
+        return self._posts_dfs
+
     def get_most_similar_datasets(self, tr_frac=0.6, val_frac=0.2,
                                   test_frac=0.2):
         """ Return a dict containing the index of the best dataset for every
