@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv, find_dotenv
 import pickle
 import pandas as pd
+import numpy as np
 from readorsee.data import preprocessing
 from readorsee.data import config
 from readorsee.data import stratification
@@ -155,6 +156,67 @@ class DataLoader:
     @property
     def user_dfs(self):
         return self._user_dfs
+
+    def get_most_similar_datasets(self, tr_frac=0.6, val_frac=0.2,
+                                  test_frac=0.2):
+        """ Return a dict containing the index of the best dataset for every
+        obs. period considered.
+
+        Return:
+            A dict like {"data_<obs.period>": index}
+        """
+        bests = {}
+        self._raw = self._raw if self._raw else self._load_raw_data()
+
+        for key, value in self._raw.items():
+            days = int(key.split("_")[1])
+            dataset = self._raw[key][0]
+            bests[key] = None
+            original_ds = np.concatenate([dataset[0], dataset[1], dataset[2]])
+            original_bdi_0_frac, original_bdi_1_frac, total_qty = (
+                    self._calculate_bdi_qty(original_ds, days))
+
+            minimum = [100000000, -1]
+            for i, dataset in enumerate(self._raw[key]):
+                train_bdi_0_frac, _, tr_qty = (
+                    self._calculate_bdi_qty(dataset[0], days))
+                val_bdi_0_frac, _, val_qty = (
+                    self._calculate_bdi_qty(dataset[1], days))
+                test_bdi_0_frac, _, test_qty = (
+                    self._calculate_bdi_qty(dataset[2], days))
+
+                bdis_fracs = [np.abs(train_bdi_0_frac - original_bdi_0_frac),
+                              np.abs(test_bdi_0_frac - original_bdi_0_frac),
+                              np.abs(val_bdi_0_frac - original_bdi_0_frac)]
+                delta = sum(bdis_fracs)
+                qty_fracs = [np.abs(tr_frac - tr_qty/total_qty),
+                             np.abs(val_frac - val_qty/total_qty),
+                             np.abs(test_frac - test_qty/total_qty)]
+                delta += sum(qty_fracs)
+
+                if delta < minimum[0]:
+                    minimum[0] = delta
+                    minimum[1] = i
+            bests[key] = minimum[1]
+        return bests
+
+    def _calculate_bdi_qty(self, subset, days):
+
+        def get_total_number_of_images(posts):
+            total = 0
+            for p in posts:
+                total += len(p.get_img_path_list())
+            return total
+
+        bdi_fraction = {0: 0, 1: 0}
+        for participant in subset:
+            posts = participant.get_posts_from_qtnre_answer_date(days)
+            # qty = len(posts)
+            qty = get_total_number_of_images(posts)
+            bdi = participant.questionnaire.get_binary_bdi()
+            bdi_fraction[bdi] += qty
+        total = (bdi_fraction[0] + bdi_fraction[1])
+        return bdi_fraction[0]/total, bdi_fraction[1]/total, total
 
     def get_posts_dataframes(self):
         self.load_raw_data()
