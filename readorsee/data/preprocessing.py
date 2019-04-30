@@ -464,3 +464,20 @@ class InstagramExternalPreProcess(PreProcess):
                     instagram_df=self._out_instagram_df)
 
         return data
+
+
+class Tokenizer():
+
+    def __init__(self):
+        self._tokenized = None
+        self._to_tokenize = None
+
+    @property
+    def tokenized(self):
+        return self._tokenized
+
+    @property
+    def to_tokenize(self):
+        return self._to_tokenize
+    
+    
