@@ -16,8 +16,10 @@ class PreProcessFacade():
                               preprocessing.InstagramExternalPreProcess()]
         elif process_method == "raw":
             self._pipeline = [preprocessing.RawPreProcess()]
-        elif process_method == "external":
+        elif process_method == "instagram_external":
             self._pipeline = [preprocessing.InstagramExternalPreProcess()]
+        elif process_method == "twitter_external":
+            self._pipeline = [preprocessing.TweetsExternalPreProcess()]
         else:
             raise ValueError
         self._save = save

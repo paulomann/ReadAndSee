@@ -5,6 +5,22 @@ import re
 import json
 from readorsee.data.models import InstagramPost, InstagramUser, Questionnaire
 from readorsee.data import config
+import spacy
+import operator
+from collections import defaultdict
+import time
+
+
+def track_time(func):
+    """ Decorator to track functions time executions'. """
+    def wrapper(*arg):
+        start = time.time()
+        ret = func(*arg)
+        end = time.time()
+        print("Function {} took : {}s".format(func.__name__, end - start))
+        return ret
+
+    return wrapper
 
 
 class PreProcessingError(Exception):
@@ -466,18 +482,120 @@ class InstagramExternalPreProcess(PreProcess):
         return data
 
 
+class TweetsExternalPreProcess(PreProcess):
+
+    def __init__(self, n_files=50):
+        super().__init__()
+        self.tokenizer = Tokenizer()
+        self._vocabulary = defaultdict(int)
+        self._n_files = n_files
+        count = sum(1 for line in open(config.PATH_TO_EXTERNAL_TWITTER_DATA))
+        self._total_lines = count
+        print("Number of Tweets in external file : {}".format(count))
+        self._lines_per_file = self._intervals(self._n_files,
+                                               self._total_lines)
+
+    def _load_data(self):
+
+        with open(config.PATH_TO_EXTERNAL_TWITTER_DATA) as infile:
+            for line in infile:
+                yield line
+
+    def _intervals(self, parts, duration):
+        part_duration = duration / parts
+        return [(i + 1) * part_duration for i in range(parts)]
+
+    @track_time
+    def preprocess(self):
+        print("Preprocessing tweets...")
+        self._lines_per_file = self._intervals(self._n_files,
+                                               self._total_lines)
+        batch_tokens = []
+        file_number = 0
+        lines = 1
+        for text in self._load_data():
+            if lines % 10000 == 0:
+                print("Processed {} lines...".format(lines))
+
+            tokenized = self.tokenizer.tokenize(text)
+            self._add_to_vocabulary(tokenized)
+            batch_tokens.append(tokenized)
+            if lines == self._lines_per_file[0]:
+                print("Saving batch {}".format(file_number))
+
+                if len(self._lines_per_file) != 1:
+                    self.save_processed(
+                        file_number, batch_tokens,
+                        config.PATH_TO_PROCESSED_TO_TRAIN_TWEETS)
+                else:
+                    self.save_processed(
+                        file_number, batch_tokens,
+                        config.PATH_TO_PROCESSED_TO_HELDOUT_TWEETS)
+                batch_tokens = []
+                file_number += 1
+                self._lines_per_file.pop(0)
+            lines += 1
+
+        self.save_vocabulary()
+
+    def _add_to_vocabulary(self, tokens):
+        for t in tokens:
+            self._vocabulary[t] += 1
+
+    def save_processed(self, file_number, batch_tokens, f_path):
+        file_name = "tweets.pt-{:05d}-of-{:05d}".format(file_number,
+                                                        self._n_files)
+        file_path = os.path.join(f_path, file_name)
+        with open(file_path) as f:
+            for tweet_tokens in batch_tokens:
+                tweet_str = " ".join(tweet_tokens)
+                f.write(tweet_str + "\n")
+
+    def save_vocabulary(self):
+        sorted_tokens = self._sort_vocabulary_by_value()
+        print("Most common words: ", sorted_tokens[:10])
+        print("Saving Vocabulary...")
+        with open(config.PATH_TO_VOCABULARY_DATA, "w") as f:
+            for token, _ in sorted_tokens:
+                f.write(token + "\n")
+
+    def _sort_vocabulary_by_value(self):
+        sorted_vocabulary = sorted(
+            self._vocabulary.items(), key=operator.itemgetter(1), reverse=True)
+        return sorted_vocabulary
+
+
 class Tokenizer():
 
     def __init__(self):
-        self._tokenized = None
-        self._to_tokenize = None
+        self._nlp = spacy.load("pt_core_news_sm")
 
-    @property
-    def tokenized(self):
-        return self._tokenized
+    def tokenize(self, text, remove_hashtags=True):
+        text = text.lower().replace("\n", "").replace("\r", "")
+        doc = self._nlp(text)
+        return self._normalize(doc, remove_hashtags)
 
-    @property
-    def to_tokenize(self):
-        return self._to_tokenize
-    
-    
+    def _normalize(self, doc, remove_hashtags):
+        tokens = []
+        for token in doc:
+            tk = token.text
+            re_username = re.compile(r"^@\w+|\s@\w+", re.UNICODE)
+            re_hashtag = re.compile(r"#\w+", re.UNICODE)
+            re_transform_url = re.compile(r'(http|https)://[^\s]+', re.UNICODE)
+            re_transform_emails = re.compile(r'[^\s]+@[^\s]+', re.UNICODE)
+            re_transform_numbers = re.compile(r'\d+', re.UNICODE)
+            punctuations = re.escape(r'"_#%\'()\*\+/=@\|{}~')
+            re_punctuations = re.compile(r'[%s]' % (punctuations), re.UNICODE)
+
+            tk = re_username.sub("username", tk)
+            tk = re_transform_url.sub("url", tk)
+            tk = re_transform_emails.sub("email", tk)
+            if remove_hashtags:
+                tk = re_hashtag.sub("", tk)
+            tk = re_transform_numbers.sub("0", tk)
+
+            tk = re_punctuations.sub("", tk)
+
+            if tk:
+                tokens.append(tk)
+        return tokens
