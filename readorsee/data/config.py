@@ -12,7 +12,7 @@ ENV_VARIABLES = join(ROOT, "instagram_access.env")
 PATH_TO_EXTERNAL_TWITTER_DATA = join(ROOT,
     "data/external/twitter/tweets_without_hashtag.txt")
 PATH_TO_PROCESSED_TO_TRAIN_TWEETS = join(ROOT,
-    "data/processed/train_tweets/")
+    "data/processed/tweets/train_tweets/")
 PATH_TO_PROCESSED_TO_HELDOUT_TWEETS = join(ROOT,
-    "data/processed/heldout_tweets/")
+    "data/processed/tweets/heldout_tweets/")
 PATH_TO_VOCABULARY_DATA = join(ROOT, "data/processed/tweets/vocabulary.txt")
