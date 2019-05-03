@@ -6,6 +6,7 @@ import numpy as np
 from readorsee.data import preprocessing
 from readorsee.data import config
 from readorsee.data import stratification
+from PIL import Image
 
 
 class PreProcessFacade():
@@ -305,6 +306,29 @@ class DataLoader:
         final_df = pd.concat([train, val, test], keys=["train", "val", "test"])
 
         return final_df
+
+    def print_image_dimensions_means(self):
+        self.load_raw_data()
+        for key, value in self._raw.items():
+            print("-------------------------")
+            print("DATASET: {}".format(key))
+            dataset = self._raw[key][0]
+            train, val, test = dataset[0], dataset[1], dataset[2]
+            data = np.concatenate([train, val, test])
+            width = height = []
+            for user in data:
+                for post in user.posts:
+                    paths = post.get_img_path_list()
+                    for p in paths:
+                        img_path = os.path.join(
+                            config.PATH_TO_INSTAGRAM_DATA, p)
+                        im = Image.open(img_path)
+                        w, h = im.size
+                        width.append(w)
+                        height.append(h)
+
+            print("WIDTH MEAN: {}\nHEIGHT MEAN: {}".format(
+                sum(width)/len(width), sum(height)/len(height)))
 
     def _load_instagram_questionnaire_answers(self):
         answers_path = os.path.join(config.PATH_TO_INTERIM_DATA,
