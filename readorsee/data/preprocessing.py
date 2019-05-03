@@ -484,57 +484,56 @@ class InstagramExternalPreProcess(PreProcess):
 
 class TweetsExternalPreProcess(PreProcess):
 
-    def __init__(self, n_files=50):
+    def __init__(self, n_files=100):
         super().__init__()
         self.tokenizer = Tokenizer()
         self._vocabulary = defaultdict(int)
         self._n_files = n_files
         count = sum(1 for line in open(config.PATH_TO_EXTERNAL_TWITTER_DATA))
         self._total_lines = count
-        print("Number of Tweets in external file : {}".format(count))
-        self._lines_per_file = self._intervals(self._n_files,
-                                               self._total_lines)
+        self._block_size = self._total_lines//self._n_files
+        print("Total tweets: {} \nTweets per batch: {}".format(
+            count, self._block_size))
+
+    def _read_large_file(self, file_handler, block_size=10000):
+        block = []
+        for line in file_handler:
+            block.append(line)
+            if len(block) == block_size:
+                yield block
+                block = []
+
+        if block:
+            yield block
 
     def _load_data(self):
+        pass
 
-        with open(config.PATH_TO_EXTERNAL_TWITTER_DATA) as infile:
-            for line in infile:
-                yield line
-
-    def _intervals(self, parts, duration):
-        part_duration = duration / parts
-        return [(i + 1) * part_duration for i in range(parts)]
+    # def _intervals(self, parts, duration):
+    #     part_duration = duration / parts
+    #     return [(i + 1) * part_duration for i in range(parts)]
 
     @track_time
     def preprocess(self):
         print("Preprocessing tweets...")
-        self._lines_per_file = self._intervals(self._n_files,
-                                               self._total_lines)
         batch_tokens = []
-        file_number = 0
-        lines = 1
-        for text in self._load_data():
-            if lines % 10000 == 0:
-                print("Processed {} lines...".format(lines))
+        batch_count = 0
 
-            tokenized = self.tokenizer.tokenize(text)
-            self._add_to_vocabulary(tokenized)
-            batch_tokens.append(tokenized)
-            if lines == self._lines_per_file[0]:
-                print("Saving batch {}".format(file_number))
+        with open(config.PATH_TO_EXTERNAL_TWITTER_DATA) as infile:
 
-                if len(self._lines_per_file) != 1:
-                    self.save_processed(
-                        file_number, batch_tokens,
+            for block in self._read_large_file(infile, self._block_size):
+                print("Processing batch {}...".format(batch_count))
+                for text in block:
+                    tokenized = self.tokenizer.tokenize(text)
+                    self._add_to_vocabulary(tokenized)
+                    batch_tokens.append(tokenized)
+
+                print("Saving batch {}".format(batch_count))
+                self.save_processed(
+                        batch_count, batch_tokens,
                         config.PATH_TO_PROCESSED_TO_TRAIN_TWEETS)
-                else:
-                    self.save_processed(
-                        file_number, batch_tokens,
-                        config.PATH_TO_PROCESSED_TO_HELDOUT_TWEETS)
                 batch_tokens = []
-                file_number += 1
-                self._lines_per_file.pop(0)
-            lines += 1
+                batch_count += 1
 
         self.save_vocabulary()
 
@@ -544,9 +543,9 @@ class TweetsExternalPreProcess(PreProcess):
 
     def save_processed(self, file_number, batch_tokens, f_path):
         file_name = "tweets.pt-{:05d}-of-{:05d}".format(file_number,
-                                                        self._n_files)
+                                                        self._n_files - 1)
         file_path = os.path.join(f_path, file_name)
-        with open(file_path) as f:
+        with open(file_path, "w") as f:
             for tweet_tokens in batch_tokens:
                 tweet_str = " ".join(tweet_tokens)
                 f.write(tweet_str + "\n")
