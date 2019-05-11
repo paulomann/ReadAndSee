@@ -576,25 +576,32 @@ class Tokenizer():
 
     def _normalize(self, doc, remove_hashtags):
         tokens = []
+
+        remove_next = False
         for token in doc:
             tk = token.text
             re_username = re.compile(r"^@\w+|\s@\w+", re.UNICODE)
-            re_hashtag = re.compile(r"#\w+", re.UNICODE)
             re_transform_url = re.compile(r'(http|https)://[^\s]+', re.UNICODE)
             re_transform_emails = re.compile(r'[^\s]+@[^\s]+', re.UNICODE)
             re_transform_numbers = re.compile(r'\d+', re.UNICODE)
-            punctuations = re.escape(r'"_#%\'()\*\+/=@\|{}~')
+            punctuations = re.escape(r'"_#°%\'()\*\+/=@\|{}~')
             re_punctuations = re.compile(r'[%s]' % (punctuations), re.UNICODE)
 
             tk = re_username.sub("username", tk)
             tk = re_transform_url.sub("url", tk)
             tk = re_transform_emails.sub("email", tk)
-            if remove_hashtags:
-                tk = re_hashtag.sub("", tk)
+
+            if remove_next:
+                tk = ""
+                remove_next = False
+
+            if remove_hashtags and tk == "#":
+                remove_next = True
+
             tk = re_transform_numbers.sub("0", tk)
 
             tk = re_punctuations.sub("", tk)
 
-            if tk:
+            if tk and (" " not in tk):
                 tokens.append(tk)
         return tokens

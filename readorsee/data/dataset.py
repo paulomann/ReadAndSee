@@ -2,34 +2,41 @@ from readorsee.data.facade import StratifyFacade
 from readorsee.data import config
 import torch
 from torchvision import transforms
+import torchvision
 import pandas as pd
 import numpy as np
 from PIL import Image
 import os
 from readorsee.data.preprocessing import Tokenizer
 from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
 
 
 class DepressionCorpus(torch.utils.data.Dataset):
 
     def __init__(self, observation_period=60, dataset=0,
-                 subset="train", transform=None):
+                 subset="train", transform=None, data_type="img"):
         """
         Params:
         subset: Can take three possible values: (train, test, val)
         observation_period: number of days for the period
         transform: the transformation method for images
+        tr_type: The type of training, with "img", "txt", or "both"
 
         Observation: The best datasets for each period are :
             {'data_60': 1, 'data_212': 1, 'data_365': 5}
         """
+        if data_type not in ["img", "txt", "both"]:
+            raise ValueError
+
         subset_to_index = {"train": 0, "val": 1, "test": 2}
         subset_idx = subset_to_index[subset]
+        self._data_type = data_type
         self._subset = subset
         self._dataset = dataset
         self._ob_period = int(observation_period)
         # A list of datasets which in turn are a list
-        self._raw = StratifyFacade("").load_stratified_data()
+        self._raw = StratifyFacade().load_stratified_data()
         self._raw = self._raw["data_" + str(self._ob_period)][self._dataset]
         self._raw = self._raw[subset_idx]
         self._data = self._get_posts_list_from_users(self._raw)
@@ -67,12 +74,21 @@ class DepressionCorpus(torch.utils.data.Dataset):
         img = image.copy()
         image.close()
 
-        caption = (" ").join(self._tokenizer.tokenize(caption))
+        caption = (" ").join(self._tokenizer.tokenize(caption)).strip()
 
         if self._transform is not None:
             img = self._transform(img)
 
-        return (img, caption, label, u_name)
+        if self._data_type == "txt":
+            data = (caption,)
+        elif self._data_type == "both":
+            data = (img, caption)
+        elif self._data_type == "img":
+            data = (img,)
+
+        if self._subset in ["train", "val"]:
+            return data + (label,)
+        return data + (label, u_name)
 
     def _get_posts_list_from_users(self, user_list):
         """ Return a list of posts from a user_list
@@ -82,9 +98,11 @@ class DepressionCorpus(torch.utils.data.Dataset):
         """
         data = []
         for u in user_list:
-            for post in u.posts:
+            for post in u.get_posts_from_qtnre_answer_date(self._ob_period):
                 images_paths = [os.path.join(config.PATH_TO_INSTAGRAM_DATA, p)
                                 for p in post.get_img_path_list()]
+                if self._data_type in ["both", "txt"]:
+                    images_paths = [images_paths[0]]
                 text = post.caption
                 label = u.questionnaire.get_binary_bdi()
                 u_name = u.username
@@ -100,7 +118,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
     def _get_users_posts_dfs(self, user_list):
         posts_dicts = []
         for u in user_list:
-            for post in u.posts:
+            for post in u.get_posts_from_qtnre_answer_date(self._ob_period):
                 d = post.get_dict_representation()
                 d["instagram_username"] = u.username
                 d["binary_bdi"] = u.questionnaire.get_binary_bdi()
@@ -134,7 +152,6 @@ class DepressionCorpus(torch.utils.data.Dataset):
             df = pd.DataFrame(questionnaire_answers, columns=cols_order + keys)
             return df
 
-        # final_df = pd.concat([train, val, test], keys=["train", "val", "test"])
         return get_answers_df(subset)
 
     def _load_instagram_questionnaire_answers(self):
@@ -142,18 +159,24 @@ class DepressionCorpus(torch.utils.data.Dataset):
                                     "instagram.csv")
         return pd.read_csv(answers_path, encoding="utf-8")
 
-# dc = DepressionCorpus()
-# dl = DataLoader(dc)
-# it = iter(dl)
-# a,b,c,d = it.next()
+# How to use
+# dc = DepressionCorpus(subset="train", data_type="img")
+# dl = DataLoader(dc, batch_size=4, shuffle=True)
+# dataiter = iter(dl)
+# image, labels = dataiter.next()
 
-# TODO : Create function to show transformed image, the same as below:
-# def imshow(img):
-#     print(img.size()) # (C x H x W) | although, the matplotlib uses (H x W x C)
-#     img = img / 2 + 0.5     # unnormalize (This process is gonna be more difficult for me)
-#     npimg = img.numpy()
-#     plt.imshow(np.transpose(npimg, (1, 2, 0)))
-#     plt.show()
+def imshow(inp, *args):
+    """ Inp is a batch of images' tensors """
+    inp = torchvision.utils.make_grid(inp) 
+    for i in args:
+        print(i)
+    inp = inp.numpy().transpose((1, 2, 0))  # H x W x C
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+    inp = std * inp + mean
+    inp = np.clip(inp, 0, 1)
+    plt.imshow(inp)
+    plt.show()
 
 
 # TODO: Reimplement those methods using the DepressionCorpus class to get

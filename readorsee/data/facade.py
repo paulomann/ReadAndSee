@@ -40,7 +40,7 @@ class PreProcessFacade():
 
 class StratifyFacade():
 
-    def __init__(self, algorithm):
+    def __init__(self, algorithm="local_search"):
         self._data = {}
         self._algorithm = algorithm
 
