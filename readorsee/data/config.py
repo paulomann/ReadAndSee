@@ -16,3 +16,6 @@ PATH_TO_PROCESSED_TO_TRAIN_TWEETS = join(ROOT,
 PATH_TO_PROCESSED_TO_HELDOUT_TWEETS = join(ROOT,
     "data/processed/tweets/heldout_tweets/")
 PATH_TO_VOCABULARY_DATA = join(ROOT, "data/processed/tweets/vocabulary.txt")
+
+PATH_TO_ELMO_WEIGHTS = join(ROOT, "models/elmo/elmo_pt_weights.hdf5")
+PATH_TO_ELMO_OPTIONS = join(ROOT, "models/elmo/elmo_pt_options.json")
