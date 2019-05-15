@@ -6,3 +6,5 @@ src/data/.temp
 env
 *.ipynb
 readorsee.egg-info
+.vscode
+models/elmo/*.hdf5
