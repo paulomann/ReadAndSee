@@ -1,7 +1,14 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
+from torch.optim import lr_scheduler
+from torch.utils.data import DataLoader
 import copy
 import time
+from readorsee.data.dataset import DepressionCorpus
+from readorsee.models.models import ELMo, ResNet
+from readorsee.data import config
+import json
 
 
 class Trainer():
@@ -13,7 +20,9 @@ class Trainer():
         self.device = torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu")
         model.to(self.device)
+        print("Using device ", device)
         if torch.cuda.device_count() > 1:
+            print("Using {} GPUs!".format(torch.cuda.device_count()))
             self.model = nn.DataParallel(model)
         self.dataloaders = dataloaders
         self.criterion = criterion
@@ -94,3 +103,116 @@ class Trainer():
         # load best model weights
         self.model.load_state_dict(best_model_wts)
         return self.model
+
+
+class Experiment():
+    """ This is a class to run all the experiments for this study """
+    def __init__(self, experiment_type="img", 
+                 observation_periods=[60, 212, 365]):
+        """ 
+        hyperparameters: json/dict containing the hyperparameters for the model
+        experiment_type: can be any of "img", "txt", "both"
+        observation_periods: list of integers with observation period
+        """
+        with open(config.PATH_TO_CLFS_OPTIONS, "r") as f:
+            hyperparameters = json.load(f)
+
+        if not hyperparameters.keys():
+            raise ValueError
+
+        self.epochs = int(hyperparameters["general"]["num_epochs"])
+        self.hyperparameters = hyperparameters
+        self.type_to_model = {"img": [ResNet(18), ResNet(34), ResNet(50)],
+                              "txt": [ELMo()],
+                              "both": []}
+
+        self.experiment_type = experiment_type
+        self.models = self.type_to_model[self.experiment_type]
+
+        if not isinstance(observation_periods, list):
+            raise ValueError
+        self.observation_periods = observation_periods
+
+    def _get_dataloaders(self, days, dset):
+        hparameters = self.hyperparameters["general"]
+        batch = int(hparameters["batch"])
+        shuffle = bool(hparameters["shuffle"])
+
+        print("GENERAL PARAMETERS ->")
+        print("Batch: {}\nShuffle: {}".format(batch, shuffle))
+
+        train_loader = DataLoader(
+            DepressionCorpus(observation_period=days, subset="train",
+                             data_type=self.experiment_type, dataset=dset),
+            batch_size=batch,
+            shuffle=shuffle
+        )
+        val_loader = DataLoader(
+            DepressionCorpus(observation_period=days, subset="val",
+                             data_type=self.experiment_type, dataset=dset),
+            batch_size=batch,
+            shuffle=shuffle
+        )
+        test_loader = DataLoader(
+            DepressionCorpus(observation_period=days, subset="test",
+                             data_type=self.experiment_type, dataset=dset),
+            batch_size=batch,
+            shuffle=shuffle
+        )
+        dataloaders = {"train": train_loader,
+                       "val": val_loader,
+                       "test": test_loader}
+        return dataloaders
+
+    def _get_criterion(self):
+        """ Loss function """
+        return nn.CrossEntropyLoss()
+
+    def _get_optimizer(self, params):
+        """ Algorithm that updates the weights of the network """
+        trainable_params = filter(lambda p: p.requires_grad, params)
+        hparameters = self.hyperparameters[self.experiment_type]["optimizer"]
+
+        if hparameters["type"] == "sgd":
+            print("Params for experiment type: ", self.experiment_type)
+            lr = float(hparameters["lr"])
+            momentum = float(hparameters["momentum"])
+            weight_decay = float(hparameters["weight_decay"])
+            nesterov = bool(hparameters["nesterov"])
+            print("OPTIMIZER PARAMS ->"
+                "lr: {}\nmomentum: {}\nweight_decay: {}\nnesterov: {}"
+                    .format(lr, momentum, weight_decay, nesterov))
+            return optim.SGD(trainable_params, lr=lr, momentum=momentum,
+                            weight_decay=weight_decay, nesterov=nesterov)
+        
+        elif hparameters["type"] == "adam":
+            # TODO
+            pass
+        else:
+            raise ValueError
+
+    def _get_scheduler(self, optimizer):
+        print("GENERAL PARAMETERS ->")
+        hparameters = self.hyperparameters[self.experiment_type]["scheduler"]
+        step_size = int(hparameters["step_size"])
+        gamma = float(hparameters["gamma"])
+        print("step_size: {}\ngamma: {}".format(step_size, gamma))
+        scheduler = lr_scheduler.StepLR(optimizer, 
+                                        step_size=step_size, gamma=gamma)
+        return scheduler
+
+    def run_experiment(self):
+
+        for days in self.observation_periods:
+            print("Executing training for {} days...".format(days))
+            for model in self.models:
+                for dataset in range(0,10):
+                    print("Training model: {} for dataset {}..."
+                          .format(model.__name__, dataset))
+                    dataloaders = self._get_dataloaders(days, dataset)
+                    criterion = self._get_criterion()
+                    optimizer = self._get_optimizer(model.parameters())
+                    scheduler = self._get_scheduler(optimizer)
+                    trainer = Trainer(model, dataloaders, criterion, 
+                                      optimizer, scheduler, self.epochs)
+                    trainer.train_model()

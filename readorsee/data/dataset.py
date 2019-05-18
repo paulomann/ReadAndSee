@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 
 class DepressionCorpus(torch.utils.data.Dataset):
 
-    def __init__(self, observation_period=60, dataset=0,
-                 subset="train", transform=None, data_type="img"):
+    def __init__(self, observation_period, dataset,
+                 subset, data_type, transform=None):
         """
         Params:
         subset: Can take three possible values: (train, test, val)
@@ -160,10 +160,11 @@ class DepressionCorpus(torch.utils.data.Dataset):
         return pd.read_csv(answers_path, encoding="utf-8")
 
 # How to use
-# dc = DepressionCorpus(subset="train", data_type="img")
+# dc = DepressionCorpus(observation_period=60, dataset=0, subset="train",
+#                       data_type="img")
 # dl = DataLoader(dc, batch_size=4, shuffle=True)
 # dataiter = iter(dl)
-# image, labels = dataiter.next()
+# text, labels = dataiter.next()
 
 def imshow(inp, *args):
     """ Inp is a batch of images' tensors """

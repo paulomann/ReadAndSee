@@ -29,17 +29,19 @@ class ResNet(nn.Module):
         )
 
     def forward(self, x):
+        print("\tIn Model: input size", x.size())
         x = self.resnet(x)
         return x
 
 
 class ELMo(nn.Module):
 
-    def __init__(self, n_classes=2):
+    def __init__(self, fine_tune=False, n_classes=2):
         super(ELMo, self).__init__()
 
         self.embedding = Elmo(config.PATH_TO_ELMO_OPTIONS,
-                              config.PATH_TO_ELMO_WEIGHTS, 1, dropout=0.2)
+                              config.PATH_TO_ELMO_WEIGHTS, 1, dropout=0.2,
+                              requires_grad=fine_tune)
         n_ftrs = self.embedding.get_output_dim()
         self.fc = nn.Sequential(
             nn.Dropout(0.5),
@@ -47,12 +49,11 @@ class ELMo(nn.Module):
         )
 
     def forward(self, x):
+        x = [sentence.split(" ") for sentence in x]
+        print("\tIn Model: input size", len(x))
         x = batch_to_ids(x)
         x = self.embedding(x)["elmo_representations"][0]
         # This is where we get the mean of the word embeddings
         x = torch.mean(x, dim=1)
         x = self.fc(x)
         return x
-
-# Hot to
-# gg = elmo([["Eu", "quero", "!"], ["Aprender", "deep", "learning"]])
