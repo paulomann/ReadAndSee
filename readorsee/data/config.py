@@ -7,6 +7,7 @@ PATH_TO_INSTAGRAM_DATA = join(ROOT, "data/external/instagram")
 PATH_TO_INTERIM_DATA = join(ROOT, "data/interim")
 PATH_TO_PROCESSED_DATA = join(ROOT, "data/processed")
 ENV_VARIABLES = join(ROOT, "instagram_access.env")
+PATH_TO_CLFS_OPTIONS = join(ROOT, "models/options.json")
 
 # ELMO related variables
 PATH_TO_EXTERNAL_TWITTER_DATA = join(ROOT,
@@ -20,4 +21,5 @@ PATH_TO_VOCABULARY_DATA = join(ROOT, "data/processed/tweets/vocabulary.txt")
 PATH_TO_ELMO_WEIGHTS = join(ROOT, "models/elmo/elmo_pt_weights.hdf5")
 PATH_TO_ELMO_OPTIONS = join(ROOT, "models/elmo/elmo_pt_options.json")
 
-PATH_TO_CLFS_OPTIONS = join(ROOT, "models/options.json")
+# FastText related variables
+PATH_TO_FASTTEXT_PT_EMBEDDINGS = join(ROOT, "models/fasttext/cc.pt.300.bin.gz")

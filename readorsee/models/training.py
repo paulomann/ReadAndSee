@@ -110,7 +110,6 @@ class Experiment():
     def __init__(self, experiment_type="img", 
                  observation_periods=[60, 212, 365]):
         """ 
-        hyperparameters: json/dict containing the hyperparameters for the model
         experiment_type: can be any of "img", "txt", "both"
         observation_periods: list of integers with observation period
         """
