@@ -6,7 +6,8 @@ from torch.utils.data import DataLoader
 import copy
 import time
 from readorsee.data.dataset import DepressionCorpus
-from readorsee.models.models import ELMo, ResNet
+from readorsee.models.models import ELMo, ResNet, FastText
+from gensim.models.fasttext import load_facebook_model
 from readorsee.data import config
 import json
 
@@ -121,8 +122,12 @@ class Experiment():
 
         self.epochs = int(hyperparameters["general"]["num_epochs"])
         self.hyperparameters = hyperparameters
+
+        print("Loading FastText pretrained vectors...")
+        fasttext = self._load_fasttext_model()
+
         self.type_to_model = {"img": [ResNet(18), ResNet(34), ResNet(50)],
-                              "txt": [ELMo()],
+                              "txt": [ELMo(), FastText(fasttext)],
                               "both": []}
 
         self.experiment_type = experiment_type
@@ -131,6 +136,11 @@ class Experiment():
         if not isinstance(observation_periods, list):
             raise ValueError
         self.observation_periods = observation_periods
+
+    def _load_fasttext_model(self):
+        fasttext = load_facebook_model(
+            config.PATH_TO_FASTTEXT_PT_EMBEDDINGS, encoding="utf-8")
+        return fasttext
 
     def _get_dataloaders(self, days, dset):
         hparameters = self.hyperparameters["general"]
