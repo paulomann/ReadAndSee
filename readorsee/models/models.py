@@ -62,6 +62,8 @@ class ELMo(nn.Module):
             mask = mask.sum(dim=1).float()
             mask = torch.repeat_interleave(mask, 
                         x.size(-1)).view(-1, x.size(-1))
+        x = torch.div(x,mask)
+        return x
 
 
 class FastText(nn.Module):
