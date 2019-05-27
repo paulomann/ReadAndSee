@@ -8,42 +8,34 @@ import numpy as np
 from PIL import Image
 import os
 from readorsee.data.preprocessing import Tokenizer
+from gensim.models.fasttext import load_facebook_model
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+from allennlp.modules.elmo import batch_to_ids
 
 
 class DepressionCorpus(torch.utils.data.Dataset):
 
     def __init__(self, observation_period, dataset,
-                 subset, data_type, transform=None):
+                 subset, data_type, fasttext=None,
+                 text_embedder="", transform=None):
         """
         Params:
         subset: Can take three possible values: (train, test, val)
         observation_period: number of days for the period
         transform: the transformation method for images
-        tr_type: The type of training, with "img", "txt", or "both"
+        data_type: The type of training, with "img", "txt", or "both"
+        text_embedder: ["fasttext", "elmo"]
 
         Observation: The best datasets for each period are :
             {'data_60': 1, 'data_212': 1, 'data_365': 5}
         """
         if data_type not in ["img", "txt", "both"]:
             raise ValueError
+        
+        if data_type in ["img"] and text_embedder in ["elmo", "fasttext"]:
+            raise ValueError("Do not use text_embedder with image only dset.")
 
-        subset_to_index = {"train": 0, "val": 1, "test": 2}
-        subset_idx = subset_to_index[subset]
-        self._data_type = data_type
-        self._subset = subset
-        self._dataset = dataset
-        self._ob_period = int(observation_period)
-        # A list of datasets which in turn are a list
-        self._raw = StratifyFacade().load_stratified_data()
-        self._raw = self._raw["data_" + str(self._ob_period)][self._dataset]
-        self._raw = self._raw[subset_idx]
-        self._data = self._get_posts_list_from_users(self._raw)
-        self._tokenizer = Tokenizer()
-
-        self._users_df = pd.DataFrame()
-        self._posts_df = pd.DataFrame()
         if transform is None:
             transform = transforms.Compose(
                 [transforms.Resize([224, 224], interpolation=Image.LANCZOS),
@@ -51,6 +43,39 @@ class DepressionCorpus(torch.utils.data.Dataset):
                  transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                       std=[0.229, 0.224, 0.225])])
         self._transform = transform
+
+        if data_type in ["txt", "both"]:
+            if text_embedder == "fasttext":
+                if fasttext is None:
+                    raise ValueError
+                else:
+                    self.fasttext = fasttext
+            elif text_embedder != "elmo":
+                raise ValueError("{} is not a valid embedder"
+                                .format(text_embedder))
+
+        subset_to_index = {"train": 0, "val": 1, "test": 2}
+        subset_idx = subset_to_index[subset]
+        self.text_embedder = text_embedder
+        self._data_type = data_type
+        self._subset = subset
+        self._dataset = dataset
+        self._ob_period = int(observation_period)
+        self._tokenizer = Tokenizer()
+        # A list of datasets which in turn are a list
+        self._raw = StratifyFacade().load_stratified_data()
+        self._raw = self._raw["data_" + str(self._ob_period)][self._dataset]
+        self._raw = self._raw[subset_idx]
+        self._data = self._get_posts_list_from_users(self._raw)
+
+        if data_type in ["txt", "both"] :
+            if text_embedder == "elmo":
+                self._elmo = self.preprocess_elmo()
+            elif text_embedder == "fasttext":
+                self._fasttext = self.preprocess_fasttext()
+
+        self._users_df = pd.DataFrame()
+        self._posts_df = pd.DataFrame()
 
     @property
     def raw(self):
@@ -69,15 +94,12 @@ class DepressionCorpus(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         """ Returns a 4-tuple with img, caption, label, u_name """
-        img_path, caption, label, u_name = self._data[idx]
-        image = Image.open(img_path)
-        img = image.copy()
-        image.close()
+        img, caption, label, u_name = self._data[idx]
 
-        caption = (" ").join(self._tokenizer.tokenize(caption)).strip()
-
-        if self._transform is not None:
-            img = self._transform(img)
+        if self.text_embedder == "elmo":
+            caption = self._elmo[idx]
+        elif self.text_embedder == "fasttext":
+            caption = self._fasttext[idx]
 
         if self._data_type == "txt":
             data = (caption,)
@@ -107,9 +129,59 @@ class DepressionCorpus(torch.utils.data.Dataset):
                 label = u.questionnaire.get_binary_bdi()
                 u_name = u.username
                 for img_path in images_paths:
-                    data.append((img_path, text, label, u_name))
+                    img, txt = self.preprocess_data(img_path, text)
+                    data.append((img, txt, label, u_name))
 
-        return data
+        return data        
+
+    def preprocess_data(self, img_path, text):
+        text = text[:600].strip()
+        text = self._tokenizer.tokenize(text)
+        text = [""] if not text else text
+
+        if self._data_type in ["img", "both"]:
+            image = Image.open(img_path)
+            img = image.copy()
+            image.close()
+            if self._transform is not None:
+                img = self._transform(img)
+        else:
+            img = img_path
+
+        return img, text
+
+    def preprocess_elmo(self):
+        _, text, _, _ = zip(*self._data)
+        return batch_to_ids(text)
+    
+    def preprocess_fasttext(self):
+        _, texts, _, _ = zip(*self._data)
+
+        def get_mean(x, mask):
+            x = x.sum(dim=1)
+            mask = mask.sum(dim=1).float()
+            mask = torch.repeat_interleave(mask, 
+                        x.size(-1)).view(-1, x.size(-1))
+            x = torch.div(x, mask)
+            return x
+
+        embeddings = []
+        for txt in texts:
+            text = np.array([self.fasttext.wv[token] for token in txt])
+            embeddings.append(torch.from_numpy(text))
+    
+        max_size = np.max([e.size(0) for e in embeddings])
+        masks = [torch.cat([torch.ones(e.size(0)), 
+                 torch.zeros(max_size-e.size(0))]) for e in embeddings]
+        masks = torch.stack(masks, dim=0)
+                 
+        embeddings = torch.stack([
+                     torch.cat([e, torch.zeros((max_size - e.size(0), 300))], 0) 
+                                for e in embeddings], dim=0)
+
+        embeddings = get_mean(embeddings, masks)
+
+        return embeddings
 
     def get_posts_dataframes(self):
         self._posts_df = self._get_users_posts_dfs(self._raw)

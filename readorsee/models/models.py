@@ -30,7 +30,6 @@ class ResNet(nn.Module):
         )
 
     def forward(self, x):
-        print("\tIn Model: input size", x.size())
         x = self.resnet(x)
         return x
 
@@ -50,59 +49,39 @@ class ELMo(nn.Module):
         )
 
     def forward(self, x):
-        x = [sentence.split(" ") for sentence in x]
-        print("\tIn Model: input size", len(x))
-        x = batch_to_ids(x)
-        x = self.embedding(x)["elmo_representations"][0]
+        x = self.embedding(x)
+        mask = x["mask"]
+        x = x["elmo_representations"][0]
         # This is where we get the mean of the word embeddings
-        x = torch.mean(x, dim=1)
+        x = self._get_mean(x, mask)
+        # ----------------------------------------------------
         x = self.fc(x)
+        return x
+        
+    def _get_mean(self, x, mask):
+        x = x.sum(dim=1)
+        with torch.no_grad():
+            mask = mask.sum(dim=1).float()
+            mask = torch.repeat_interleave(mask, 
+                        x.size(-1)).view(-1, x.size(-1))
+        x = torch.div(x, mask)
         return x
 
 class FastText(nn.Module):
     
     def __init__(self, n_classes=2):
-        fasttext = self.load_fasttext_model()
-
-        self.embedding = fasttext.wv
+        super(FastText, self).__init__()
         self.fc = nn.Sequential(
             nn.Dropout(0.5),
-            nn.Linear(fasttext.vector_size, n_classes)
+            nn.Linear(300, n_classes)
         )
 
     def forward(self, x):
-        x = [sentence.split(" ") for sentence in x]
-        for sentence in x:
-            embedding = torch.mean([self.embedding[tok] for tok in sentence])
-            # TODO: append the embeddings mean altogether
+        x = self.fc(x)
+        return x
 
-    def load_fasttext_model(self):
-        fasttext = load_facebook_model(
-            config.PATH_TO_FASTTEXT_PT_EMBEDDINGS, encoding="utf-8")
-        return fasttext
-        
-
-# elmo = ELMo()
-# gg = elmo(["eu gosto", "de deep learning"])
-
-FastText()
-
-
-
-
-    # def load_vectors(self):
-    #     fname = config.PATH_TO_FASTTEXT_PT_EMBEDDINGS
-    #     fin = io.open(fname, "r", encoding="utf-8", 
-    #                   newline="\n", errors="ignore")
-    #     vocab_size, embed_dimension = map(int, fin.readline().split())
-    #     data = {}
-    #     embeddings = torch.zeros((vocab_size, embed_dimension))
-    #     vocab = Counter()
-    #     for i, line in enumerate(fin):
-    #         tokens = line.rstrip().split(' ')
-    #         embedding = torch.tensor(list(map(float, tokens[1:])))
-    #         word = tokens[0]
-    #         data[word] = embedding
-    #         embeddings[i] = embedding
-    #         vocab[word] = i
-    #     return data
+def init_weight_xavier_uniform(m):
+    if isinstance(m, nn.Linear):
+        torch.nn.init.xavier_uniform_(m.weight)
+        if m.bias is not None:
+            torch.nn.init.zeros_(m.bias)

@@ -13,17 +13,18 @@ import json
 
 class Trainer():
 
-    def __init__(self, model, dataloaders, criterion, optimizer, 
+    def __init__(self, model, dataloaders, dataset_sizes, criterion, optimizer, 
                  scheduler, num_epochs=100):
         self.acc_loss = {"train": {"loss": [], "acc": []}, 
                          "val": {"loss": [], "acc": []}}
         self.device = torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu")
-        model.to(self.device)
-        print("Using device ", device)
+        self.model = model.to(self.device)
+        print("Using device ", self.device)
         if torch.cuda.device_count() > 1:
-            print("Using {} GPUs!".format(torch.cuda.device_count()))
-            self.model = nn.DataParallel(model)
+           print("Using {} GPUs!".format(torch.cuda.device_count()))
+           self.model = nn.DataParallel(model)
+        self.dataset_sizes = dataset_sizes
         self.dataloaders = dataloaders
         self.criterion = criterion
         self.optimizer = optimizer
@@ -79,9 +80,9 @@ class Trainer():
                     running_loss += loss.item() * inputs.size(0)
                     running_corrects += torch.sum(preds == labels.data)
 
-                epoch_loss = running_loss / len(self.dataloaders[phase])
+                epoch_loss = running_loss / self.dataset_sizes[phase]
                 epoch_acc = (running_corrects.double() / 
-                             len(self.dataloaders[phase]))
+                             self.dataset_sizes[phase])
 
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
