@@ -3,8 +3,6 @@ import torch.nn as nn
 import torch
 from allennlp.modules.elmo import Elmo, batch_to_ids
 from readorsee.data import config
-from gensim.models.fasttext import load_facebook_model
-
 
 class ResNet(nn.Module):
 
@@ -64,11 +62,9 @@ class ELMo(nn.Module):
             mask = mask.sum(dim=1).float()
             mask = torch.repeat_interleave(mask, 
                         x.size(-1)).view(-1, x.size(-1))
-        x = torch.div(x, mask)
-        return x
+
 
 class FastText(nn.Module):
-    
     def __init__(self, n_classes=2):
         super(FastText, self).__init__()
         self.fc = nn.Sequential(
