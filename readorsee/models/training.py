@@ -15,7 +15,7 @@ import json
 class Trainer():
 
     def __init__(self, model, dataloaders, dataset_sizes, criterion, optimizer, 
-                 scheduler, num_epochs=100):
+                 scheduler, num_epochs=100, threshold=0.5):
         self.acc_loss = {"train": {"loss": [], "acc": []}, 
                          "val": {"loss": [], "acc": []}}
         self.device = torch.device(
@@ -31,6 +31,8 @@ class Trainer():
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.num_epochs = num_epochs
+        self.logit_threshold = torch.tensor(threshold / (1 - threshold)).log()
+        self.logit_threshold = self.logit_threshold.to(self.device)
 
     def train_model(self):
 
@@ -69,8 +71,9 @@ class Trainer():
                     # track history if only in train
                     with torch.set_grad_enabled(phase == 'train'):
                         outputs = self.model(inputs)
-                        _, preds = torch.max(outputs, 1)
-                        loss = self.criterion(outputs, labels)
+                        # _, preds = torch.max(outputs, 1)
+                        preds =  outputs > self.logit_threshold
+                        loss = self.criterion(outputs, labels.float())
 
                         # backward + optimize only if in training phase
                         if phase == 'train':
@@ -79,7 +82,7 @@ class Trainer():
 
                     # statistics
                     running_loss += loss.item() * inputs.size(0)
-                    running_corrects += torch.sum(preds == labels.data)
+                    running_corrects += torch.sum(preds.long() == labels.data)
 
                 epoch_loss = running_loss / self.dataset_sizes[phase]
                 epoch_acc = (running_corrects.double() / 

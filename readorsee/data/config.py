@@ -20,6 +20,7 @@ PATH_TO_VOCABULARY_DATA = join(ROOT, "data/processed/tweets/vocabulary.txt")
 
 PATH_TO_ELMO_WEIGHTS = join(ROOT, "models/elmo/elmo_pt_weights.hdf5")
 PATH_TO_ELMO_OPTIONS = join(ROOT, "models/elmo/elmo_pt_options.json")
+PATH_TO_ELMO_FC_WEIGHTS = join(ROOT, "models/elmo/elmo_fc_weights.hdf5")
 
 # FastText related variables
 PATH_TO_FASTTEXT_PT_EMBEDDINGS = join(ROOT, "models/fasttext/cc.pt.300.bin.gz")

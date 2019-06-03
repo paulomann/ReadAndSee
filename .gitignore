@@ -8,4 +8,5 @@ env
 readorsee.egg-info
 .vscode
 models/elmo/*.hdf5
+models/elmo/*.tar.gz
 models/fasttext/*

@@ -34,16 +34,19 @@ class ResNet(nn.Module):
 
 class ELMo(nn.Module):
 
-    def __init__(self, fine_tune=False, n_classes=2):
+    def __init__(self, fine_tune=False):
         super(ELMo, self).__init__()
 
         self.embedding = Elmo(config.PATH_TO_ELMO_OPTIONS,
-                              config.PATH_TO_ELMO_WEIGHTS, 1, dropout=0.2,
-                              requires_grad=fine_tune)
+                              config.PATH_TO_ELMO_WEIGHTS, 1, dropout=0.5,
+                              requires_grad=fine_tune,
+                              scalar_mix_parameters=[0, 0, 1])
         n_ftrs = self.embedding.get_output_dim()
         self.fc = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(n_ftrs, n_classes)
+            nn.Linear(n_ftrs, n_ftrs//2),
+            nn.BatchNorm1d(n_ftrs//2),
+            nn.ReLU(),
+            nn.Linear(n_ftrs//2, 1)
         )
 
     def forward(self, x):
@@ -54,6 +57,7 @@ class ELMo(nn.Module):
         x = self._get_mean(x, mask)
         # ----------------------------------------------------
         x = self.fc(x)
+        x = x.squeeze()
         return x
         
     def _get_mean(self, x, mask):
@@ -67,11 +71,11 @@ class ELMo(nn.Module):
 
 
 class FastText(nn.Module):
-    def __init__(self, n_classes=2):
+    def __init__(self):
         super(FastText, self).__init__()
         self.fc = nn.Sequential(
             nn.Dropout(0.5),
-            nn.Linear(300, n_classes)
+            nn.Linear(300, 1)
         )
 
     def forward(self, x):
