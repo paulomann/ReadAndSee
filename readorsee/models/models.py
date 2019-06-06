@@ -37,9 +37,9 @@ class ELMo(nn.Module):
     def __init__(self, fine_tune=False):
         super(ELMo, self).__init__()
 
-        self.embedding = Elmo(config.PATH_TO_ELMO_OPTIONS,
-                              config.PATH_TO_ELMO_WEIGHTS, 1, dropout=0.5,
-                              requires_grad=fine_tune,
+        self.embedding = Elmo(config.PATH_TO_ALLENNLP_ELMO_OPTIONS,
+                              config.PATH_TO__ALLENNLP_ELMO_WEIGHTS, 1, 
+                              dropout=0.5, requires_grad=fine_tune,
                               scalar_mix_parameters=[0, 0, 1])
         n_ftrs = self.embedding.get_output_dim()
         self.fc = nn.Sequential(
@@ -48,6 +48,7 @@ class ELMo(nn.Module):
             nn.ReLU(),
             nn.Linear(n_ftrs//2, 1)
         )
+        self._init_weight()
 
     def forward(self, x):
         x = self.embedding(x)
@@ -68,6 +69,10 @@ class ELMo(nn.Module):
                         x.size(-1)).view(-1, x.size(-1))
         x = torch.div(x,mask)
         return x
+    
+    def _init_weight(self):
+        fc_weights = torch.load(config.PATH_TO_ELMO_FC_WEIGHTS)
+        self.fc.load_state_dict(fc_weights, strict=False)
 
 
 class FastText(nn.Module):
