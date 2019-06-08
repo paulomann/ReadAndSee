@@ -34,12 +34,22 @@ class ResNet(nn.Module):
 
 class ELMo(nn.Module):
 
-    def __init__(self, fine_tune=False):
-        super(ELMo, self).__init__()
+    def __init__(self, fine_tuned=False):
+        """
+        fine_tuned = if False uses the ELMo trained on the wikipedia PT-BR dump.
+                     Otherwise uses the ELMo trained on the wikipedia tuned 
+                     with our 31 million tweets dataset.
 
-        self.embedding = Elmo(config.PATH_TO_ALLENNLP_ELMO_OPTIONS,
-                              config.PATH_TO__ALLENNLP_ELMO_WEIGHTS, 1, 
-                              dropout=0.5, requires_grad=fine_tune,
+        """
+        super(ELMo, self).__init__()
+        self.fine_tuned = fine_tuned
+
+        options_path = (config.PATH_TO_FT_ELMO_OPTIONS if fine_tuned else
+                        config.PATH_TO_ELMO_OPTIONS)
+        weights_path = (config.PATH_TO_FT_ELMO_WEIGHTS if fine_tuned else
+                        config.PATH_TO_ELMO_WEIGHTS)
+
+        self.embedding = Elmo(options_path, weights_path, 1, dropout=0.5,
                               scalar_mix_parameters=[0, 0, 1])
         n_ftrs = self.embedding.get_output_dim()
         self.fc = nn.Sequential(
@@ -71,7 +81,9 @@ class ELMo(nn.Module):
         return x
     
     def _init_weight(self):
-        fc_weights = torch.load(config.PATH_TO_ELMO_FC_WEIGHTS)
+        weights_path = (config.ELMO_FT_FC_WEIGHTS if self.fine_tuned else
+                        config.ELMO_FC_WEIGHTS)
+        fc_weights = torch.load(weights_path)
         self.fc.load_state_dict(fc_weights, strict=False)
 
 

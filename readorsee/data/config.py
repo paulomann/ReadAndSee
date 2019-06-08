@@ -18,10 +18,18 @@ PATH_TO_PROCESSED_TO_HELDOUT_TWEETS = join(ROOT,
     "data/processed/tweets/heldout_tweets/")
 PATH_TO_VOCABULARY_DATA = join(ROOT, "data/processed/tweets/vocabulary.txt")
 
-PATH_TO__ALLENNLP_ELMO_WEIGHTS = join(ROOT, "models/elmo/elmo_pt_weights.hdf5")
-PATH_TO_ALLENNLP_ELMO_OPTIONS = join(ROOT, "models/elmo/elmo_pt_options.json")
-PATH_TO_ELMO_FC_WEIGHTS = join(ROOT, "models/elmo/elmo_fc_weights.hdf5")
-PATH_TO_TRAINED_ELMO = join(ROOT, "models/elmo/trained_elmo.pt")
+# Normal elmo:
+PATH_TO_ELMO_WEIGHTS = join(ROOT, "models/elmo/elmo_pt_weights.hdf5")
+PATH_TO_ELMO_OPTIONS = join(ROOT, "models/elmo/elmo_pt_options.json")
+# Fine tuned elmo:
+PATH_TO_FT_ELMO_WEIGHTS = join(ROOT,
+    "models/elmo/fine_tuned_elmo/elmo_pt_fine_tuned_weights.hdf5")
+PATH_TO_FT_ELMO_OPTIONS = join(ROOT, 
+    "models/elmo/fine_tuned_elmo/elmo_pt_fine_tuned_options.json")
+
+ELMO_FC_WEIGHTS = join(ROOT, "models/elmo/elmo_fc_weights.hdf5")
+ELMO_FT_FC_WEIGHTS = join(ROOT, 
+    "models/elmo/fine_tuned_elmo/elmo_ft_fc_weights.hdf5")
 
 # FastText related variables
 PATH_TO_FASTTEXT_PT_EMBEDDINGS = join(ROOT, "models/fasttext/cc.pt.300.bin.gz")

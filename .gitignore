@@ -9,4 +9,9 @@ readorsee.egg-info
 .vscode
 models/elmo/*.hdf5
 models/elmo/*.tar.gz
+models/elmo/*.index
+models/elmo/events*
+models/elmo/*.meta
+models/elmo/checkpoint
+models/elmo/fine_tuned_elmo
 models/fasttext/*
