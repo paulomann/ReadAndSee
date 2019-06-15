@@ -34,7 +34,7 @@ class ResNet(nn.Module):
 
 class ELMo(nn.Module):
 
-    def __init__(self, fine_tuned=False):
+    def __init__(self, fine_tuned):
         """
         fine_tuned = if False uses the ELMo trained on the wikipedia PT-BR dump.
                      Otherwise uses the ELMo trained on the wikipedia tuned 
@@ -58,7 +58,7 @@ class ELMo(nn.Module):
             nn.ReLU(),
             nn.Linear(n_ftrs//2, 1)
         )
-        self._init_weight()
+        # self._init_weight()
 
     def forward(self, x):
         x = self.embedding(x)
@@ -80,24 +80,38 @@ class ELMo(nn.Module):
         x = torch.div(x,mask)
         return x
     
-    def _init_weight(self):
-        weights_path = (config.ELMO_FT_FC_WEIGHTS if self.fine_tuned else
-                        config.ELMO_FC_WEIGHTS)
+    def init_weight(self, dataset, days):
+        weights_path = (config.PATH_TO_TUNED_ELMO_FC_WEIGHTS if self.fine_tuned
+                        else config.PATH_TO_ELMO_FC_WEIGHTS)
+        weights_path = weights_path.format(dataset, days)
         fc_weights = torch.load(weights_path)
         self.fc.load_state_dict(fc_weights, strict=False)
 
 
 class FastText(nn.Module):
-    def __init__(self):
+    def __init__(self, fine_tuned):
+        """ 
+        fine_tuned   = use the fine_tuned model <<Not implemented yet>>
+        """
         super(FastText, self).__init__()
+
+        self.fine_tuned = fine_tuned
+        n_ftrs = 300
+
         self.fc = nn.Sequential(
             nn.Dropout(0.5),
-            nn.Linear(300, 1)
+            nn.Linear(n_ftrs, n_ftrs//2),
+            nn.BatchNorm1d(n_ftrs//2),
+            nn.ReLU(),
+            nn.Linear(n_ftrs//2, 1)
         )
 
     def forward(self, x):
         x = self.fc(x)
         return x
+
+    def init_weight(self, dataset, days):
+        pass
 
 def init_weight_xavier_uniform(m):
     if isinstance(m, nn.Linear):

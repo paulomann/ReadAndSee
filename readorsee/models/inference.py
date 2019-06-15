@@ -8,95 +8,153 @@ from torch.utils.data import DataLoader
 from gensim.models.fasttext import load_facebook_model
 from readorsee.data import config
 import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
+from sklearn.utils.multiclass import unique_labels
 
 class Predictor():
 
-    def __init__(self, model):
+    def __init__(self, model, data_type, fine_tuned):
+        """ 
+        model   = the model class to be instantiated, not the instantiated 
+                  class itself
+        """
         self.model = model
-        self.model.eval()
+        self.embedder = self.model.__name__.lower()
         self.device = torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu")
-        self.model = model.to(self.device)
+        self.data_type = data_type
+        self.fine_tuned = fine_tuned
 
     def _list_from_tensor(self, tensor):
         return list(tensor.cpu().detach().numpy())
 
-    def _predict(self, dataloader, threshold=0.5):
+
+    def predict_all(self, threshold=0.5):
+        periods = [60, 212, 365]
+        datasets = list(range(0,10))
+        fasttext = (self.load_fasttext_model() if self.embedder == "fasttext"
+                    else None)
+        # res_datasets = [{str(i):[] for i in range(0,10)} for i in range(0,3)]
+        results = {"60": {}, "212": {}, "365": {}}
+
+        for days in periods:
+            all_metrics = []
+            for dataset in datasets:
+                model = self.instantiate_model()
+                model.init_weight(dataset, days)
+                test = DepressionCorpus(observation_period=days, 
+                    subset="test", data_type=self.data_type, fasttext=fasttext, 
+                    text_embedder=self.embedder, dataset=dataset)
+                test_loader = DataLoader(test, batch_size=124, shuffle=True)
+                metrics = self.get_metrics(model, test_loader, threshold)
+                all_metrics.append(metrics)
+            
+            mean_metrics = np.mean(np.vstack(all_metrics), axis=0)
+            results[days] = {"precision": mean_metrics[0],
+                             "recall": mean_metrics[1],
+                             "f1": mean_metrics[2]}
+            self.print_metrics(days, mean_metrics)
+        
+        return results
+
+    def get_metrics(self, model, dataloader, threshold):
+        pred_data = self.predict(model, dataloader, threshold)
+        Y_true, Y_pred, _, _  = zip(*pred_data)
+        metrics = precision_recall_fscore_support(
+                            y_true=Y_true, y_pred=Y_pred, average="binary")
+        return np.array(metrics[:-1])
+    
+    def predict(self, model, dataloader, threshold):
         logit_threshold = torch.tensor(threshold / (1 - threshold)).log()
         logit_threshold = logit_threshold.to(self.device)
-        pred_labels = [] 
+        pred_labels = []
         test_labels = []
+        u_names = []
+        logits = []
         for inputs, labels, u_name in dataloader:
             inputs = inputs.to(self.device)
             labels = labels.to(self.device)
-            outputs = self.model(inputs)
+            outputs = model(inputs)
             preds = outputs > logit_threshold
             pred_labels.extend(self._list_from_tensor(preds))
             test_labels.extend(self._list_from_tensor(labels))
-        # report = classification_report(test_labels, pred_labels)
-        # print(report)
-        report = self.pandas_classification_report(test_labels, pred_labels)
-        class0 = report.iloc[0].values[:3]
-        class1 = report.iloc[1].values[:3]
-        return class0, class1
-    
-    def predict(self, data_type="txt", embedder="elmo", threshold=0.5):
-        periods = [60, 212, 365]
-        datasets = list(range(0,10))
-        fasttext = self.load_fasttext_model() if embedder == "fasttext" else None
-        for days in periods:
+            u_names.extend(u_name)
+            logits.extend(self._list_from_tensor(outputs))
 
-            metrics_class0 = []
-            metrics_class1 = []
-            for dataset in datasets:
+        return zip(test_labels, pred_labels, logits, u_names)
 
-                test = DepressionCorpus(observation_period=days, 
-                    subset="test", data_type=data_type, fasttext=fasttext, 
-                    text_embedder=embedder, dataset=dataset)
-                test_loader = DataLoader(test, batch_size=124, shuffle=True)
-                class0, class1 = self._predict(test_loader, threshold)
-                metrics_class0.append(class0)
-                metrics_class1.append(class1)
-            
-            metrics0 = np.mean(np.vstack(metrics_class0), axis=0)
-            metrics1 = np.mean(np.vstack(metrics_class1), axis=0)
-            self.print_metrics(days, metrics0, metrics1)
-
-    def print_metrics(self, days, metrics0, metrics1):
-
-        print("----------------------")
-        print("For Class 0 [Less depressed] with {} days".format(days))
-        print("\t Precision: {} \t Recall: {} \t F1: {}".format(
-            metrics0[0], metrics0[1], metrics0[2]))
-        
+    def print_metrics(self, days, metrics):
+        print("----------------------")        
         print("For Class 1 [More depressed] with {} days".format(days))
         print("\t Precision: {} \t Recall: {} \t F1: {}".format(
-            metrics1[0], metrics1[1], metrics1[2]))
+            metrics[0], metrics[1], metrics[2]))
 
     def load_fasttext_model(self):
         fasttext = load_facebook_model(
             config.PATH_TO_FASTTEXT_PT_EMBEDDINGS, encoding="utf-8")
         return fasttext
+    
+    def instantiate_model(self):
+        model = self.model(self.fine_tuned)
+        model.eval()
+        model.to(self.device)
+        return model
 
-    def pandas_classification_report(self, y_true, y_pred):
-        metrics_summary = precision_recall_fscore_support(
-                y_true=y_true, 
-                y_pred=y_pred)
+def plot_confusion_matrix(y_true, y_pred, classes = np.array([0, 1]),
+                          normalize=False,
+                          title=None,
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    if not title:
+        if normalize:
+            title = 'Normalized confusion matrix'
+        else:
+            title = 'Confusion matrix, without normalization'
 
-        avg = list(precision_recall_fscore_support(
-                y_true=y_true, 
-                y_pred=y_pred,
-                average='weighted'))
+    # Compute confusion matrix
+    cm = confusion_matrix(y_true, y_pred)
+    # Only use the labels that appear in the data
+    classes = classes[unique_labels(y_true, y_pred)]
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
 
-        metrics_sum_index = ['precision', 'recall', 'f1-score', 'support']
-        class_report_df = pd.DataFrame(
-            list(metrics_summary),
-            index=metrics_sum_index)
+    fig, ax = plt.subplots()
+    im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
+    ax.figure.colorbar(im, ax=ax)
+    # We want to show all ticks...
+    ax.set(xticks=np.arange(cm.shape[1]),
+           yticks=np.arange(cm.shape[0]),
+           # ... and label them with the respective list entries
+           xticklabels=classes, yticklabels=classes,
+           title=title,
+           ylabel='True label',
+           xlabel='Predicted label')
 
-        support = class_report_df.loc['support']
-        total = support.sum() 
-        avg[-1] = total
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+             rotation_mode="anchor")
 
-        class_report_df['avg / total'] = avg
-
-        return class_report_df.T
+    # Loop over data dimensions and create text annotations.
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, format(cm[i, j], fmt),
+                    ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black")
+    fig.tight_layout()
+    metrics = precision_recall_fscore_support(
+                            y_true=y_true, 
+                            y_pred=y_pred,
+                            average="binary")
+    print()
+    print("\tPrecision \t{}\n\tRecall \t{}\n\tF1-score \t{}".format(
+        metrics[0], metrics[1], metrics[2]))
+    #print(scores)

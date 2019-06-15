@@ -22,9 +22,9 @@ class Trainer():
             "cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = model.to(self.device)
         print("Using device ", self.device)
-        if torch.cuda.device_count() > 1:
-           print("Using {} GPUs!".format(torch.cuda.device_count()))
-           self.model = nn.DataParallel(model)
+        # if torch.cuda.device_count() > 1:
+        #    print("Using {} GPUs!".format(torch.cuda.device_count()))
+        #    self.model = nn.DataParallel(model)
         self.dataset_sizes = dataset_sizes
         self.dataloaders = dataloaders
         self.criterion = criterion
@@ -61,6 +61,7 @@ class Trainer():
 
                 # Iterate over data.
                 for inputs, labels in self.dataloaders[phase]:
+                    # if inputs.size()[0] < 4: continue
                     inputs = inputs.to(self.device)
                     labels = labels.to(self.device)
 
