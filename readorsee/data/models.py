@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import face_recognition
 from readorsee.data import config
 import os
+import json
 
 
 class Questionnaire:
@@ -197,3 +198,12 @@ class InstagramPost:
                          date=self.date, comments_count=self.comments_count,
                          face_count=fce_cnt_mean)
         return data_dict
+
+class Config(object):
+
+    def __init__(self):
+        options_path = config.PATH_TO_CLFS_OPTIONS
+
+        with open(options_path, "r") as f:
+            options_file = json.load(f)
+        self.__dict__ = options_file

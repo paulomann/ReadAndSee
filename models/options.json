@@ -1,8 +1,9 @@
 {
     "general":{
-        "batch":2,
+        "batch":32,
         "shuffle":true,
-        "num_epochs":150
+        "num_epochs":35,
+	"mean": "sif"
     },
     "img":{
         "optimizer":{
@@ -20,14 +21,14 @@
     "txt":{
         "optimizer":{
             "type":"sgd",
-            "lr":0.0001,
+            "lr":0.01,
             "weight_decay":0.0001,
             "momentum":0.9,
             "nesterov":true
         },
         "scheduler":{
             "step_size":7,
-            "gamma":0.1
+            "gamma":0.85
         }
     }
  }
