@@ -22,9 +22,9 @@ class Trainer():
             "cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = model.to(self.device)
         print("Using device ", self.device)
-        # if torch.cuda.device_count() > 1:
-        #    print("Using {} GPUs!".format(torch.cuda.device_count()))
-        #    self.model = nn.DataParallel(model)
+        if torch.cuda.device_count() > 1:
+           print("Using {} GPUs!".format(torch.cuda.device_count()))
+           self.model = nn.DataParallel(model)
         self.dataset_sizes = dataset_sizes
         self.dataloaders = dataloaders
         self.criterion = criterion
@@ -34,7 +34,7 @@ class Trainer():
         self.logit_threshold = torch.tensor(threshold / (1 - threshold)).log()
         self.logit_threshold = self.logit_threshold.to(self.device)
 
-    def train_model(self):
+    def train_model(self, verbose=True):
 
         since = time.time()
 
@@ -45,8 +45,9 @@ class Trainer():
         best_acc = 0.0
 
         for epoch in range(self.num_epochs):
-            print('Epoch {}/{}'.format(epoch, self.num_epochs - 1))
-            print('-' * 10)
+            if verbose:
+                print('Epoch {}/{}'.format(epoch, self.num_epochs - 1))
+                print('-' * 10)
 
             # Each epoch has a training and validation phase
             for phase in ['train', 'val']:
@@ -60,9 +61,10 @@ class Trainer():
                 running_corrects = 0
 
                 # Iterate over data.
-                for inputs, labels in self.dataloaders[phase]:
+                for inputs, sif_weights, labels in self.dataloaders[phase]:
                     # if inputs.size()[0] < 4: continue
                     inputs = inputs.to(self.device)
+                    sif_weights = sif_weights.to(self.device)
                     labels = labels.to(self.device)
 
                     # zero the parameter gradients
@@ -71,7 +73,7 @@ class Trainer():
                     # forward
                     # track history if only in train
                     with torch.set_grad_enabled(phase == 'train'):
-                        outputs = self.model(inputs)
+                        outputs = self.model(inputs, sif_weights)
                         # _, preds = torch.max(outputs, 1)
                         preds =  outputs > self.logit_threshold
                         loss = self.criterion(outputs, labels.float())
@@ -89,8 +91,9 @@ class Trainer():
                 epoch_acc = (running_corrects.double() / 
                              self.dataset_sizes[phase])
 
-                print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                    phase, epoch_loss, epoch_acc))
+                if verbose:
+                    print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                        phase, epoch_loss, epoch_acc))
                 self.acc_loss[phase]["loss"].append(epoch_loss)
                 self.acc_loss[phase]["acc"].append(epoch_acc)
 
@@ -98,8 +101,8 @@ class Trainer():
                 if phase == 'val' and epoch_acc > best_acc:
                     best_acc = epoch_acc
                     best_model_wts = copy.deepcopy(self.model.state_dict())
-
-            print()
+            if verbose:
+                print()
 
         time_elapsed = time.time() - since
         print('Training complete in {:.0f}m {:.0f}s'.format(

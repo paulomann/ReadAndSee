@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from allennlp.modules.elmo import batch_to_ids
 from collections import defaultdict
+from readorsee.features.embed_sentence import SIF, PMEAN
 
 
 class DepressionCorpus(torch.utils.data.Dataset):
@@ -71,9 +72,8 @@ class DepressionCorpus(torch.utils.data.Dataset):
         self._data = self._get_posts_list_from_users(self._raw)
 
         self.configuration = Config()
-
-        self.word_freqs = self.get_word_frequencies()
-        self.sif_weights = self.get_word_SIF_weights()
+        _, sentences, _, _ = zip(*self._data)
+        self.sif_weights = SIF.get_SIF_weights(sentences)
 
         if data_type in ["txt", "both"] :
             if text_embedder == "elmo":
@@ -102,16 +102,18 @@ class DepressionCorpus(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         """ Returns a 4-tuple with img, caption, label, u_name """
         img, caption, label, u_name = self._data[idx]
+        sif_weight = self.sif_weights[idx]
 
         if self.text_embedder == "elmo":
             caption = self._elmo[idx]
         elif self.text_embedder == "fasttext":
+            print("FASTTEXT EMBEDDING!")
             caption = self._fasttext[idx]
 
         if self._data_type == "txt":
-            data = (caption,)
+            data = (caption, sif_weight)
         elif self._data_type == "both":
-            data = (img, caption)
+            data = (img, caption, sif_weight)
         elif self._data_type == "img":
             data = (img,)
 
@@ -142,7 +144,6 @@ class DepressionCorpus(torch.utils.data.Dataset):
         return data        
 
     def preprocess_data(self, img_path, text):
-        # text = text[:600].strip()
         text = self._tokenizer.tokenize(text)[:100]
         text = [""] if not text else text
 
@@ -164,30 +165,26 @@ class DepressionCorpus(torch.utils.data.Dataset):
     def preprocess_fasttext(self):
         _, texts, _, _ = zip(*self._data)
 
-        def get_mean(x, mask, sentences):
-            # if self.configuration.general["mean"] == "sif":
-            #     ftrs = mask.size(1)
-            #     #sif_weights = torch.ones_like(x.size())
-            #     sif_weights = []
-            #     for sent in sentences:
-            #         sif_sent = [self.sif_weights[token] for token in sent]
-            #         sif_sent = torch.tensor(sif_sent)
-            #         sent_size = sif_sent.size(0)
-            #         sif_sent = torch.cat(
-            #             [sif_sent, torch.zeros(ftrs - sent_size)])
-            #         sif_weights.append(sif_sent)
-                
-            #     sif_weights = torch.stack(sif_weights)
-            #     assert sif_weights.size(0) == x.size(0)
-            #     assert sif_weights.size(1) == x.size(1)
-                
+        def get_mean(x, mask):
 
-            x = x.sum(dim=1)
-            mask = mask.sum(dim=1).float()
-            mask = torch.repeat_interleave(mask, 
-                        x.size(-1)).view(-1, x.size(-1))
-            x = torch.div(x, mask)
-            return x
+            if self.configuration.general["mean"] == "sif":
+                print("SIF MEAN")
+                sif = SIF()
+                sif_embeddings = sif.SIF_embedding(x, masks, self.sif_weights)
+                return sif_embeddings
+
+            elif self.configuration.general["mean"] == "pmean":
+                raise NotImplementedError
+
+            elif self.configuration.general["mean"] == "avg":
+                x = x.sum(dim=1)
+                mask = mask.sum(dim=1).float()
+                mask = torch.repeat_interleave(mask, 
+                            x.size(-1)).view(-1, x.size(-1))
+                x = torch.div(x, mask)
+                return x
+            else:
+                raise NotImplementedError
 
         embeddings = []
         for txt in texts:
@@ -203,7 +200,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
                      torch.cat([e, torch.zeros((max_size - e.size(0), 300))], 0) 
                                 for e in embeddings], dim=0)
 
-        embeddings = get_mean(embeddings, masks, texts)
+        embeddings = get_mean(embeddings, masks)
 
         return embeddings
 
@@ -254,30 +251,6 @@ class DepressionCorpus(torch.utils.data.Dataset):
         answers_path = os.path.join(config.PATH_TO_INTERIM_DATA,
                                     "instagram.csv")
         return pd.read_csv(answers_path, encoding="utf-8")
-    
-    def get_word_frequencies(self):
-        _, sentences, _, _ = zip(*self._data)
-        
-        word_freqs = defaultdict(int)
-        vocab_size = 0
-        for sent in sentences:
-            for token in sent:
-                word_freqs[token] += 1
-        
-        for k, v in word_freqs.items():
-            vocab_size += v
-        for k, v in word_freqs.items():
-            word_freqs[k] = v/vocab_size
-
-        return word_freqs
-
-    def get_word_SIF_weights(self, a=1e-3):
-        _, sentences, _, _ = zip(*self._data)
-        word2weight = {}
-        for sent in sentences:
-            for token in sent:
-                word2weight[token] = a / (a + self.word_freqs[token])
-        return word2weight
 
 # ds = DepressionCorpus(60, 0, "train", "txt", None, "elmo")
 

@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch
 from allennlp.modules.elmo import Elmo, batch_to_ids
 from readorsee.data import config
+from readorsee.data.models import Config
+from readorsee.features.embed_sentence import SIF, PMEAN
 
 class ResNet(nn.Module):
 
@@ -44,6 +46,8 @@ class ELMo(nn.Module):
         super(ELMo, self).__init__()
         self.fine_tuned = fine_tuned
 
+        self.configuration = Config()
+
         options_path = (config.PATH_TO_FT_ELMO_OPTIONS if fine_tuned else
                         config.PATH_TO_ELMO_OPTIONS)
         weights_path = (config.PATH_TO_FT_ELMO_WEIGHTS if fine_tuned else
@@ -60,25 +64,45 @@ class ELMo(nn.Module):
         )
         # self._init_weight()
 
-    def forward(self, x):
+    def forward(self, x, sif_weights):
         x = self.embedding(x)
-        mask = x["mask"]
+        masks = x["mask"].float()
         x = x["elmo_representations"][0]
         # This is where we get the mean of the word embeddings
-        x = self._get_mean(x, mask)
+        x = self._get_mean(x, masks, sif_weights)
         # ----------------------------------------------------
         x = self.fc(x)
         x = x.squeeze()
         return x
+
+    def _get_mean(self, x, masks, sif_weights):
         
-    def _get_mean(self, x, mask):
-        x = x.sum(dim=1)
-        with torch.no_grad():
-            mask = mask.sum(dim=1).float()
+        if self.configuration.general["mean"] == "sif":
+            sif = SIF()
+            sif_embeddings = sif.SIF_embedding(x, masks, sif_weights)
+            return sif_embeddings
+
+        elif self.configuration.general["mean"] == "pmean":
+            raise NotImplementedError
+
+        elif self.configuration.general["mean"] == "avg":
+            x = x.sum(dim=1)
+            mask = mask.sum(dim=1)
             mask = torch.repeat_interleave(mask, 
                         x.size(-1)).view(-1, x.size(-1))
-        x = torch.div(x,mask)
-        return x
+            x = torch.div(x, mask)
+            return x
+        else:
+            raise NotImplementedError
+
+    # def _get_mean(self, x, mask):
+    #     x = x.sum(dim=1)
+    #     with torch.no_grad():
+    #         mask = mask.sum(dim=1).float()
+    #         mask = torch.repeat_interleave(mask, 
+    #                     x.size(-1)).view(-1, x.size(-1))
+    #     x = torch.div(x,mask)
+    #     return x
     
     def init_weight(self, dataset, days):
         weights_path = (config.PATH_TO_TUNED_ELMO_FC_WEIGHTS if self.fine_tuned
@@ -106,7 +130,7 @@ class FastText(nn.Module):
             nn.Linear(n_ftrs//2, 1)
         )
 
-    def forward(self, x):
+    def forward(self, x, sif_weights):
         x = self.fc(x)
         return x
 

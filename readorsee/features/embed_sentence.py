@@ -1,5 +1,6 @@
 import numpy as np
-from sklearn.decomposition import TruncatedSVD
+import torch
+from collections import defaultdict
 
 
 class SIF():
@@ -7,59 +8,88 @@ class SIF():
     def __init__(self):
         pass
 
-    def get_weighted_average(self, We, x, w):
-        """
-        Compute the weighted average vectors
-        :param We: We[i,:] is the vector for word i
-        :param x: x[i, :] are the indices of the words in sentence i
-        :param w: w[i, :] are the weights for the words in sentence i
-        :return: emb[i, :] are the weighted average vector for sentence i
-        """
-        n_samples = x.shape[0]
-        emb = np.zeros((n_samples, We.shape[1]))
-        for i in range(n_samples):
-            emb[i,:] = w[i,:].dot(We[x[i,:],:]) / np.count_nonzero(w[i,:])
-        return emb
+    def get_weighted_average(self, x, masks, sif_weights):
+        assert sif_weights.size(0) == x.size(0)
+        assert sif_weights.size(1) == x.size(1)
+        assert sif_weights.size(0) == masks.size(0)
+        assert sif_weights.size(1) == masks.size(1)
+        sif_embeddings = torch.zeros((x.size(0), x.size(2)),
+                         device=sif_weights.device, dtype=sif_weights.dtype)
+        for i in range(x.size(0)):
+            sif_embeddings[i] = sif_weights[i] @ x[i]
+        
+        sif_embeddings = sif_embeddings.div(masks.sum(dim=1).view(-1, 1))
+        return sif_embeddings
 
-    def compute_pc(self, X, npc=1):
-        """
-        Compute the principal components. DO NOT MAKE THE DATA ZERO MEAN!
-        :param X: X[i,:] is a data point
-        :param npc: number of principal components to remove
-        :return: component_[i,:] is the i-th pc
-        """
-        svd = TruncatedSVD(n_components=npc, n_iter=7, random_state=0)
-        svd.fit(X)
-        return svd.components_
-
-    def remove_pc(self, X, npc=1):
+    def remove_pc(self, sif_embeddings):
         """
         Remove the projection on the principal components
-        :param X: X[i,:] is a data point
-        :param npc: number of principal components to remove
-        :return: XX[i, :] is the data point after removing its projection
+        :param sif_embeddings: Is the data containing the weighted sif embedding
+        :return: is the data after removing its projection
         """
-        pc = self.compute_pc(X, npc)
-        if npc==1:
-            XX = X - X.dot(pc.transpose()) * pc
-        else:
-            XX = X - X.dot(pc.transpose()).dot(pc)
-        return XX
+        _, _, V = sif_embeddings.svd()
+        V = -V[:, 0]
+        # Remove th first singular vector
+        sif_embeddings = (sif_embeddings - (sif_embeddings @ V).view(-1, 1) * V)
+        return sif_embeddings
 
-    def SIF_embedding(self, We, x, w):#, params):
+    def SIF_embedding(self, embeddings, masks, sif_weights):
         """
         Compute the scores between pairs of sentences using weighted average + 
         removing the projection on the first principal component
-        :param We: We[i,:] is the vector for word i
-        :param x: x[i, :] are the indices of the words in the i-th sentence
-        :param w: w[i, :] are the weights for the words in the i-th sentence
-        :param params.rmpc: if >0, remove the projections of the sentence 
-                            embeddings to their first principal component
+        :param embeddings: tensor of size (A, B, C), where A is the number
+                           of sentences (batch), B is the length of the biggest
+                           sentence in sentences, and C is the embedding size
+        :param masks: tensor of size (A, B), exactly the same size as embeddings
+                      param, where masks[i,j] is 1 if a word is in the sentece
+                      and 0 otherwise
+        :param sif_weights: tensor of size (A, B), exactly the same size as the
+                            masks param, but instead of 1 and 0, it contain the
+                            SIF weight for each word in the sentence, e.g.,
+                            sif_weights[i, :] contains the weights of words for
+                            the sentence i
         :return: emb, emb[i, :] is the embedding for sentence i
         """
-        emb = self.get_weighted_average(We, x, w)
-        emb = self.remove_pc(emb, 1)
+        emb = self.get_weighted_average(embeddings, masks, sif_weights)
+        emb = self.remove_pc(emb)
         return emb
+
+    @staticmethod
+    def get_SIF_weights(sentences, a=1e-3):
+        """
+        :return:    tensor of size (A, B), exactly the same size as the
+                    masks param of SIF_embedding function, but instead
+                    of 1 and 0, it contain the SIF weight for each word
+                    in the sentence, e.g., sif_weights[i, :] contains
+                    the weights of words for the sentence i.
+        """
+        word_freqs = defaultdict(int)
+        vocab_size = 0
+        word2weight = {}
+        max_sent_size = 0
+        for sent in sentences:
+            if len(sent) > max_sent_size:
+                    max_sent_size = len(sent)
+            for token in sent:
+                word_freqs[token] += 1
+        
+        for k, v in word_freqs.items():
+            vocab_size += v
+        for k, v in word_freqs.items():
+            word2weight[k] = a / (a + v/vocab_size)
+
+        sif = []
+        for sent in sentences:
+            sif_sent = [word2weight[token] for token in sent]
+            sif_sent = torch.tensor(sif_sent)
+            sent_size = sif_sent.size(0)
+            sif_sent = torch.cat(
+                [sif_sent, torch.zeros(max_sent_size - sent_size)])
+            sif.append(sif_sent)
+        
+        sif = torch.stack(sif)
+
+        return sif
     
 
 class PMEAN():

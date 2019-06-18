@@ -2,8 +2,8 @@
     "general":{
         "batch":32,
         "shuffle":true,
-        "num_epochs":35,
-	"mean": "sif"
+        "epochs":35,
+	    "mean": "sif"
     },
     "img":{
         "optimizer":{
