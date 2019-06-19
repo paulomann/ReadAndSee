@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv, find_dotenv
 import pickle
 from readorsee.data import preprocessing
-from readorsee.data import config
+from readorsee import settings
 from readorsee.data import stratification
 
 
@@ -69,7 +69,7 @@ class StratifyFacade():
         return self._data
 
     def save(self):
-        stratified_path = os.path.join(config.PATH_TO_PROCESSED_DATA,
+        stratified_path = os.path.join(settings.PATH_TO_PROCESSED_DATA,
                                        "stratified_data.pickle")
         if self._data.keys():
             with open(stratified_path, "wb") as f:
@@ -81,7 +81,7 @@ class StratifyFacade():
 
     @staticmethod
     def load_stratified_data():
-        stratified_path = os.path.join(config.PATH_TO_PROCESSED_DATA,
+        stratified_path = os.path.join(settings.PATH_TO_PROCESSED_DATA,
                                        "stratified_data.pickle")
 
         data = None
@@ -106,7 +106,7 @@ class InstagramScraperFacade:
 
     def _load_env_variables(self):
         """ Load environment variables in file to module. """
-        env_variables_path = config.ENV_VARIABLES
+        env_variables_path = settings.ENV_VARIABLES
         dotenv_path = find_dotenv(env_variables_path)
         load_dotenv(dotenv_path)
 
@@ -124,7 +124,7 @@ class InstagramScraperFacade:
 
     def _scraped_users_list(self):
         """ Return a set of scrapped Instagram usernames. """
-        data_path = config.PATH_TO_INSTAGRAM_DATA
+        data_path = settings.PATH_TO_INSTAGRAM_DATA
         return set(os.listdir(data_path))
 
     def _get_all_instagram_users(self):

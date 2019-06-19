@@ -4,7 +4,7 @@ import numpy as np
 import re
 import json
 from readorsee.data.models import InstagramPost, InstagramUser, Questionnaire
-from readorsee.data import config
+from readorsee import settings
 import spacy
 import operator
 from collections import defaultdict
@@ -75,7 +75,7 @@ class RawPreProcess(PreProcess):
 
     def _load_data(self):
         """ Return the questionnaire DataFrame. """
-        df = pd.read_csv(config.PATH_TO_QUESTIONNAIRE, encoding="utf-8")
+        df = pd.read_csv(settings.PATH_TO_QUESTIONNAIRE, encoding="utf-8")
         return df
 
     def save_processed(self):
@@ -177,7 +177,7 @@ class RawPreProcess(PreProcess):
 
     def _save_dataframe(self, dataframe, filename):
         """ Save the dataframe with the filename name. """
-        data_path = os.path.join(config.PATH_TO_INTERIM_DATA, filename)
+        data_path = os.path.join(settings.PATH_TO_INTERIM_DATA, filename)
         dataframe.to_csv(data_path, encoding="utf-8", index=False)
 
     def _preprocess_questionnaire(self, df):
@@ -265,7 +265,7 @@ class InstagramExternalPreProcess(PreProcess):
         self._blocked_profiles = []
         self._valid_participants = []
 
-        for user in self._load_data(config.PATH_TO_INSTAGRAM_DATA):
+        for user in self._load_data(settings.PATH_TO_INSTAGRAM_DATA):
 
             if self._has_at_least_one_post(user["json"]):
                 instagram_user, instagram_posts = self._get_instagram_models(
@@ -297,7 +297,7 @@ class InstagramExternalPreProcess(PreProcess):
             yield data
 
     def _load_instagram_questionnaire_answers(self):
-        answers_path = os.path.join(config.PATH_TO_INTERIM_DATA,
+        answers_path = os.path.join(settings.PATH_TO_INTERIM_DATA,
                                     "instagram.csv")
         return pd.read_csv(answers_path, encoding="utf-8")
 
@@ -489,7 +489,7 @@ class TweetsExternalPreProcess(PreProcess):
         self.tokenizer = Tokenizer()
         self._vocabulary = defaultdict(int)
         self._n_files = n_files
-        count = sum(1 for line in open(config.PATH_TO_EXTERNAL_TWITTER_DATA))
+        count = sum(1 for line in open(settings.PATH_TO_EXTERNAL_TWITTER_DATA))
         self._total_lines = count
         self._block_size = self._total_lines//self._n_files
         print("Total tweets: {} \nTweets per batch: {}".format(
@@ -519,7 +519,7 @@ class TweetsExternalPreProcess(PreProcess):
         batch_tokens = []
         batch_count = 0
 
-        with open(config.PATH_TO_EXTERNAL_TWITTER_DATA) as infile:
+        with open(settings.PATH_TO_EXTERNAL_TWITTER_DATA) as infile:
 
             for block in self._read_large_file(infile, self._block_size):
                 print("Processing batch {}...".format(batch_count))
@@ -531,7 +531,7 @@ class TweetsExternalPreProcess(PreProcess):
                 print("Saving batch {}".format(batch_count))
                 self.save_processed(
                         batch_count, batch_tokens,
-                        config.PATH_TO_PROCESSED_TO_TRAIN_TWEETS)
+                        settings.PATH_TO_PROCESSED_TO_TRAIN_TWEETS)
                 batch_tokens = []
                 batch_count += 1
 
@@ -554,7 +554,7 @@ class TweetsExternalPreProcess(PreProcess):
         sorted_tokens = self._sort_vocabulary_by_value()
         print("Most common words: ", sorted_tokens[:10])
         print("Saving Vocabulary...")
-        with open(config.PATH_TO_VOCABULARY_DATA, "w") as f:
+        with open(settings.PATH_TO_VOCABULARY_DATA, "w") as f:
             for token, _ in sorted_tokens:
                 f.write(token + "\n")
 

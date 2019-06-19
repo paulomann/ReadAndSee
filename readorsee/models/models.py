@@ -2,7 +2,7 @@ from torchvision import models
 import torch.nn as nn
 import torch
 from allennlp.modules.elmo import Elmo, batch_to_ids
-from readorsee.data import config
+from readorsee import settings
 from readorsee.data.models import Config
 from readorsee.features.embed_sentence import SIF, PMEAN
 
@@ -48,10 +48,10 @@ class ELMo(nn.Module):
 
         self.configuration = Config()
 
-        options_path = (config.PATH_TO_FT_ELMO_OPTIONS if fine_tuned else
-                        config.PATH_TO_ELMO_OPTIONS)
-        weights_path = (config.PATH_TO_FT_ELMO_WEIGHTS if fine_tuned else
-                        config.PATH_TO_ELMO_WEIGHTS)
+        options_path = (settings.PATH_TO_FT_ELMO_OPTIONS if fine_tuned else
+                        settings.PATH_TO_ELMO_OPTIONS)
+        weights_path = (settings.PATH_TO_FT_ELMO_WEIGHTS if fine_tuned else
+                        settings.PATH_TO_ELMO_WEIGHTS)
 
         self.embedding = Elmo(options_path, weights_path, 1, dropout=0.5,
                               scalar_mix_parameters=[0, 0, 1])
@@ -68,7 +68,7 @@ class ELMo(nn.Module):
         x = self.embedding(x)
         masks = x["mask"].float()
         x = x["elmo_representations"][0]
-        # This is where we get the mean of the word embeddings
+        # ----------------------------------------------------
         x = self._get_mean(x, masks, sif_weights)
         # ----------------------------------------------------
         x = self.fc(x)
@@ -87,29 +87,13 @@ class ELMo(nn.Module):
 
         elif self.configuration.general["mean"] == "avg":
             x = x.sum(dim=1)
-            mask = mask.sum(dim=1)
-            mask = torch.repeat_interleave(mask, 
+            masks = masks.sum(dim=1)
+            masks = torch.repeat_interleave(masks, 
                         x.size(-1)).view(-1, x.size(-1))
-            x = torch.div(x, mask)
+            x = torch.div(x, masks)
             return x
         else:
             raise NotImplementedError
-
-    # def _get_mean(self, x, mask):
-    #     x = x.sum(dim=1)
-    #     with torch.no_grad():
-    #         mask = mask.sum(dim=1).float()
-    #         mask = torch.repeat_interleave(mask, 
-    #                     x.size(-1)).view(-1, x.size(-1))
-    #     x = torch.div(x,mask)
-    #     return x
-    
-    def init_weight(self, dataset, days):
-        weights_path = (config.PATH_TO_TUNED_ELMO_FC_WEIGHTS if self.fine_tuned
-                        else config.PATH_TO_ELMO_FC_WEIGHTS)
-        weights_path = weights_path.format(dataset, days)
-        fc_weights = torch.load(weights_path)
-        self.fc.load_state_dict(fc_weights, strict=False)
 
 
 class FastText(nn.Module):

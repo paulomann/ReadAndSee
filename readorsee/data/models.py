@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import face_recognition
-from readorsee.data import config
+from readorsee import settings
 import os
 import json
 
@@ -185,7 +185,7 @@ class InstagramPost:
             self._face_count_list.append(face_count)
 
     def _load_image(self, image_path):
-        path_to_file = os.path.join(config.PATH_TO_INSTAGRAM_DATA, image_path)
+        path_to_file = os.path.join(settings.PATH_TO_INSTAGRAM_DATA, image_path)
         return face_recognition.load_image_file(path_to_file)
 
     def _get_face_count(self, image):
@@ -202,7 +202,7 @@ class InstagramPost:
 class Config(object):
 
     def __init__(self):
-        options_path = config.PATH_TO_CLFS_OPTIONS
+        options_path = settings.PATH_TO_CLFS_OPTIONS
 
         with open(options_path, "r") as f:
             options_file = json.load(f)

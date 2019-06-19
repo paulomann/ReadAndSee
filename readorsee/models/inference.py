@@ -6,7 +6,7 @@ from readorsee.data.dataset import DepressionCorpus
 import pandas as pd
 from torch.utils.data import DataLoader
 from gensim.models.fasttext import load_facebook_model
-from readorsee.data import config
+from readorsee import settings
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
@@ -17,64 +17,27 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 
 class Predictor():
+    """
+    Predictor for binary classification problems. 
+    """
 
-    def __init__(self, model, data_type, fine_tuned):
+    def __init__(self, model):
         """ 
         model   = the model class to be instantiated, not the instantiated 
                   class itself
         """
         self.model = model
-        self.embedder = self.model.__name__.lower()
+        self.configuration = Config()
         self.device = torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu")
-        self.data_type = data_type
-        self.fine_tuned = fine_tuned
-        self.configuration = Config()
+        if not next(model.parameters()).is_cuda:
+            self.model = self.model.to(self.device)
 
     def _list_from_tensor(self, tensor):
         return list(tensor.cpu().detach().numpy())
-
-
-    def predict_all(self, threshold=0.5, training_verbose=True):
-        periods = [60, 212, 365]
-        datasets = list(range(0,10))
-        fasttext = (self.load_fasttext_model() if self.embedder == "fasttext"
-                    else None)
-        # res_datasets = [{str(i):[] for i in range(0,10)} for i in range(0,3)]
-        results = {"60": {}, "212": {}, "365": {}}
-
-        for days in periods:
-            all_metrics = []
-            for dataset in datasets:
-                print("Training model for {} days and dataset {}...".format(
-                    days, dataset
-                ))
-                model = self.instantiate_model()
-                model = self.train_model(model, days, dataset,
-                                         fasttext, training_verbose)
-                test = DepressionCorpus(observation_period=days, 
-                    subset="test", data_type=self.data_type, fasttext=fasttext, 
-                    text_embedder=self.embedder, dataset=dataset)
-                test_loader = DataLoader(test, batch_size=124, shuffle=True)
-                metrics = self.get_metrics(model, test_loader, threshold)
-                all_metrics.append(metrics)
-            
-            mean_metrics = np.mean(np.vstack(all_metrics), axis=0)
-            results[days] = {"precision": mean_metrics[0],
-                             "recall": mean_metrics[1],
-                             "f1": mean_metrics[2]}
-            self.print_metrics(days, mean_metrics)
-        
-        return results
-
-    def get_metrics(self, model, dataloader, threshold):
-        pred_data = self.predict(model, dataloader, threshold)
-        Y_true, Y_pred, _, _  = zip(*pred_data)
-        metrics = precision_recall_fscore_support(
-                            y_true=Y_true, y_pred=Y_pred, average="binary")
-        return np.array(metrics[:-1])
     
-    def predict(self, model, dataloader, threshold):
+    def predict(self, dataloader, threshold=0.5):
+        self.model.eval()
         logit_threshold = torch.tensor(threshold / (1 - threshold)).log()
         logit_threshold = logit_threshold.to(self.device)
         pred_labels = []
@@ -85,69 +48,18 @@ class Predictor():
             inputs = inputs.to(self.device)
             sif_weights = sif_weights.to(self.device)
             labels = labels.to(self.device)
-            outputs = model(inputs, sif_weights)
+            outputs = self.model(inputs, sif_weights)
             preds = outputs > logit_threshold
             pred_labels.extend(self._list_from_tensor(preds))
             test_labels.extend(self._list_from_tensor(labels))
             u_names.extend(u_name)
             logits.extend(self._list_from_tensor(outputs))
-
-        return zip(test_labels, pred_labels, logits, u_names)
-
-    def print_metrics(self, days, metrics):
-        print("----------------------")        
-        print("For Class 1 [More depressed] with {} days".format(days))
-        print("\t Precision: {} \t Recall: {} \t F1: {}".format(
-            metrics[0], metrics[1], metrics[2]))
-
-    def load_fasttext_model(self):
-        fasttext = load_facebook_model(
-            config.PATH_TO_FASTTEXT_PT_EMBEDDINGS, encoding="utf-8")
-        return fasttext
-    
-    def train_model(self, model, days, dataset, fasttext, verbose):
-
-        criterion = nn.BCEWithLogitsLoss()
-        parameters = filter(lambda p: p.requires_grad, model.parameters())
-        general = self.configuration.general
-        optimizer = getattr(self.configuration, self.data_type)["optimizer"]
-        scheduler = getattr(self.configuration, self.data_type)["scheduler"]
-        optimizer_ft = optim.SGD(parameters, 
-                              lr=optimizer["lr"], 
-                              momentum=optimizer["momentum"],
-                              weight_decay=optimizer["weight_decay"],
-                              nesterov=optimizer["nesterov"])
-        exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft,
-                                               step_size=scheduler["step_size"],
-                                               gamma=scheduler["gamma"])
-        train = DepressionCorpus(observation_period=days, subset="train",
-                        data_type=self.data_type, fasttext=fasttext,
-                        text_embedder=self.embedder, dataset=dataset)
-        train_loader = DataLoader(train, batch_size=general["batch"], 
-                                  shuffle=general["shuffle"])
-        val = DepressionCorpus(observation_period=days, subset="val",
-                               data_type=self.data_type, fasttext=fasttext,
-                               text_embedder=self.embedder, dataset=dataset)
-
-        val_loader = DataLoader(val, batch_size=general["batch"],
-                                shuffle=general["shuffle"])
-
-        dataloaders = {"train": train_loader, "val": val_loader}
-        dataset_sizes = {"train": len(train), "val": len(val)}
-
-        trainer = Trainer(model, dataloaders, dataset_sizes,
-                          criterion, optimizer_ft,
-                          exp_lr_scheduler, general["epochs"])
-
-        trained_model = trainer.train_model(verbose)
-        trained_model.eval()
-        return trained_model
-
-    def instantiate_model(self):
-        model = self.model(self.fine_tuned)
-        # model.eval()
-        # model.to(self.device)
-        return model
+        #return zip(test_labels, pred_labels, logits, u_names)
+        metrics = precision_recall_fscore_support(
+            y_true=test_labels,
+            y_pred=pred_labels,
+            average="binary")
+        return np.array(metrics[:-1])
 
 def plot_confusion_matrix(y_true, y_pred, classes = np.array([0, 1]),
                           normalize=False,

@@ -1,5 +1,5 @@
 from readorsee.data.facade import StratifyFacade
-from readorsee.data import config
+from readorsee import settings
 from readorsee.data.models import Config
 import torch
 from torchvision import transforms
@@ -130,7 +130,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
         data = []
         for u in user_list:
             for post in u.get_posts_from_qtnre_answer_date(self._ob_period):
-                images_paths = [os.path.join(config.PATH_TO_INSTAGRAM_DATA, p)
+                images_paths = [os.path.join(settings.PATH_TO_INSTAGRAM_DATA, p)
                                 for p in post.get_img_path_list()]
                 if self._data_type in ["both", "txt"]:
                     images_paths = [images_paths[0]]
@@ -165,7 +165,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
     def preprocess_fasttext(self):
         _, texts, _, _ = zip(*self._data)
 
-        def get_mean(x, mask):
+        def get_mean(x, masks):
 
             if self.configuration.general["mean"] == "sif":
                 print("SIF MEAN")
@@ -178,10 +178,10 @@ class DepressionCorpus(torch.utils.data.Dataset):
 
             elif self.configuration.general["mean"] == "avg":
                 x = x.sum(dim=1)
-                mask = mask.sum(dim=1).float()
-                mask = torch.repeat_interleave(mask, 
+                masks = masks.sum(dim=1).float()
+                masks = torch.repeat_interleave(masks, 
                             x.size(-1)).view(-1, x.size(-1))
-                x = torch.div(x, mask)
+                x = torch.div(x, masks)
                 return x
             else:
                 raise NotImplementedError
@@ -248,7 +248,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
         return get_answers_df(subset)
 
     def _load_instagram_questionnaire_answers(self):
-        answers_path = os.path.join(config.PATH_TO_INTERIM_DATA,
+        answers_path = os.path.join(settings.PATH_TO_INTERIM_DATA,
                                     "instagram.csv")
         return pd.read_csv(answers_path, encoding="utf-8")
 
