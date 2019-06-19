@@ -41,10 +41,10 @@ class SIF():
                            of sentences (batch), B is the length of the biggest
                            sentence in sentences, and C is the embedding size
         :param masks: tensor of size (A, B), exactly the same size as embeddings
-                      param, where masks[i,j] is 1 if a word is in the sentece
-                      and 0 otherwise
+                      param, where masks[i,j] is 1 if a word j is in the sentece
+                      i, and 0 otherwise
         :param sif_weights: tensor of size (A, B), exactly the same size as the
-                            masks param, but instead of 1 and 0, it contain the
+                            masks param, but instead of 1 and 0, it contains the
                             SIF weight for each word in the sentence, e.g.,
                             sif_weights[i, :] contains the weights of words for
                             the sentence i
