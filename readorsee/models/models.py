@@ -64,7 +64,7 @@ class ELMo(nn.Module):
         )
         # self._init_weight()
 
-    def forward(self, x, sif_weights):
+    def forward(self, x, sif_weights=None):
         x = self.embedding(x)
         masks = x["mask"].float()
         x = x["elmo_representations"][0]
@@ -114,7 +114,7 @@ class FastText(nn.Module):
             nn.Linear(n_ftrs//2, 1)
         )
 
-    def forward(self, x, sif_weights):
+    def forward(self, x):
         x = self.fc(x)
         return x
 

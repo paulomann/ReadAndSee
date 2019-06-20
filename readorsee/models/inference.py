@@ -44,11 +44,10 @@ class Predictor():
         test_labels = []
         u_names = []
         logits = []
-        for inputs, sif_weights, labels, u_name in dataloader:
-            inputs = inputs.to(self.device)
-            sif_weights = sif_weights.to(self.device)
+        for *inputs, labels, u_name in dataloader:
+            inputs = [i.to(self.device) for i in inputs]
             labels = labels.to(self.device)
-            outputs = self.model(inputs, sif_weights)
+            outputs = self.model(*inputs)
             preds = outputs > logit_threshold
             pred_labels.extend(self._list_from_tensor(preds))
             test_labels.extend(self._list_from_tensor(labels))

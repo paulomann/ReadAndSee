@@ -60,10 +60,8 @@ class Trainer():
                 running_corrects = 0
 
                 # Iterate over data.
-                for inputs, sif_weights, labels in self.dataloaders[phase]:
-                    # if inputs.size()[0] < 4: continue
-                    inputs = inputs.to(self.device)
-                    sif_weights = sif_weights.to(self.device)
+                for *inputs, labels in self.dataloaders[phase]:
+                    inputs = [i.to(self.device) for i in inputs]
                     labels = labels.to(self.device)
 
                     # zero the parameter gradients
@@ -72,7 +70,7 @@ class Trainer():
                     # forward
                     # track history if only in train
                     with torch.set_grad_enabled(phase == 'train'):
-                        outputs = self.model(inputs, sif_weights)
+                        outputs = self.model(*inputs)
                         # _, preds = torch.max(outputs, 1)
                         preds =  outputs > self.logit_threshold
                         loss = self.criterion(outputs, labels.float())
@@ -83,7 +81,7 @@ class Trainer():
                             self.optimizer.step()
 
                     # statistics
-                    running_loss += loss.item() * inputs.size(0)
+                    running_loss += loss.item() * inputs[0].size(0)
                     running_corrects += torch.sum(preds.long() == labels.data)
 
                 epoch_loss = running_loss / self.dataset_sizes[phase]

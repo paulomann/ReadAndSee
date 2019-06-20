@@ -9,12 +9,15 @@ import numpy as np
 from PIL import Image
 import os
 from readorsee.data.preprocessing import Tokenizer
+from readorsee.data.models import Config
 from gensim.models.fasttext import load_facebook_model
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from allennlp.modules.elmo import batch_to_ids
 from collections import defaultdict
 from readorsee.features.embed_sentence import SIF, PMEAN
+
+_all_ = ["DepressionCorpus"]
 
 
 class DepressionCorpus(torch.utils.data.Dataset):
@@ -71,7 +74,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
         self._raw = self._raw[subset_idx]
         self._data = self._get_posts_list_from_users(self._raw)
 
-        self.configuration = Config()
+        self.config = Config()
         _, sentences, _, _ = zip(*self._data)
         self.sif_weights = SIF.get_SIF_weights(sentences)
 
@@ -105,15 +108,17 @@ class DepressionCorpus(torch.utils.data.Dataset):
         sif_weight = self.sif_weights[idx]
 
         if self.text_embedder == "elmo":
-            caption = self._elmo[idx]
+            if self.config.general["mean"] == "sif":
+                caption = (self._elmo[idx], sif_weight)
+            else:
+                caption = (self._elmo[idx],)
         elif self.text_embedder == "fasttext":
-            print("FASTTEXT EMBEDDING!")
-            caption = self._fasttext[idx]
+            caption = (self._fasttext[idx],)
 
         if self._data_type == "txt":
-            data = (caption, sif_weight)
+            data = caption
         elif self._data_type == "both":
-            data = (img, caption, sif_weight)
+            data = (img,) + caption
         elif self._data_type == "img":
             data = (img,)
 
@@ -167,16 +172,16 @@ class DepressionCorpus(torch.utils.data.Dataset):
 
         def get_mean(x, masks):
 
-            if self.configuration.general["mean"] == "sif":
+            if self.config.general["mean"] == "sif":
                 print("SIF MEAN")
                 sif = SIF()
                 sif_embeddings = sif.SIF_embedding(x, masks, self.sif_weights)
                 return sif_embeddings
 
-            elif self.configuration.general["mean"] == "pmean":
+            elif self.config.general["mean"] == "pmean":
                 raise NotImplementedError
 
-            elif self.configuration.general["mean"] == "avg":
+            elif self.config.general["mean"] == "avg":
                 x = x.sum(dim=1)
                 masks = masks.sum(dim=1).float()
                 masks = torch.repeat_interleave(masks, 
