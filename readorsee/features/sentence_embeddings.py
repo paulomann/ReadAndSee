@@ -98,11 +98,11 @@ class PMEAN():
     def __init__(self):
         self.operations = dict([
             ('mean', 
-                lambda word_emb: [torch.mean(word_emb, dim=1)]),
+                lambda word_emb: torch.mean(word_emb, dim=0)),
             ('max',
-                lambda word_emb: [torch.max(word_emb, dim=1)[0]]),
+                lambda word_emb: torch.max(word_emb, dim=0)[0]),
             ('min',
-                lambda word_emb: [torch.min(word_emb, dim=1)[0]]),
+                lambda word_emb: torch.min(word_emb, dim=0)[0]),
             ('p_mean_2',
                 lambda word_emb: [self.gen_mean(word_emb, p=2.0).real]),
             ('p_mean_3',
@@ -125,19 +125,29 @@ class PMEAN():
         std = embeddings.std(dim=1).view(-1,1)
         return (embeddings - mean).div(std)
 
-    def PMEAN_embedding(self, embeddings,
+    def PMEAN_embedding(self, embeddings, masks,
                         chosen_operations=["mean","max","min"]):
         """
         :param embeddings: tensor of size (A, B, C), where A is the number
                            of sentences (batch), B is the length of the biggest
                            sentence in sentences, and C is the embedding size
+        :param masks: tensor of size (A, B), exactly the same size as embeddings
+                      param, where masks[i,j] is 1 if a word j is in the sentece
+                      i, and 0 otherwise
         :param chosen_operations: operations to concatenate the power means
         """
-        concat_embs = []
-        for o in chosen_operations:
-            concat_embs += self.operations[o](embeddings)
-        sentence_embeddings = torch.cat(concat_embs, dim=1)
+        sent_embs = []
+        for i in range(embeddings.size(0)):
+            sent = torch.index_select(embeddings[i, ...], 0,
+                                    masks[i, ...].nonzero().squeeze())
+            op_embs = []
+            for o in chosen_operations:
+                emb = self.operations[o](sent)
+                emb[torch.isnan(emb)] = 0
+                emb[torch.isinf(emb)] = 1
+                op_embs += [emb]
+            sent_embs += [torch.cat(op_embs, dim=0)]
 
-        # Z-norm
-        sentence_embeddings = self.znorm(sentence_embeddings)
-        return sentence_embeddings
+        embeddings = torch.stack(sent_embs)
+        embeddings = self.znorm(embeddings)
+        return embeddings

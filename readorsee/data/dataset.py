@@ -178,14 +178,17 @@ class DepressionCorpus(torch.utils.data.Dataset):
                 return sif_embeddings
 
             elif self.config.general["mean"] == "pmean":
-                raise NotImplementedError
+                pmean = PMEAN()
+                means = self.config.general["pmean"]
+                pmean_embedding = pmean.PMEAN_embedding(x, masks, means)
+                return pmean_embedding
 
             elif self.config.general["mean"] == "avg":
                 x = x.sum(dim=1)
-                masks = masks.sum(dim=1).float()
-                masks = torch.repeat_interleave(masks, 
-                            x.size(-1)).view(-1, x.size(-1))
+                masks = masks.sum(dim=1).view(-1, 1).float()
                 x = torch.div(x, masks)
+                x[x.isnan()] = 0
+                x[x.isinf()] = 1
                 return x
             else:
                 raise NotImplementedError
@@ -205,7 +208,6 @@ class DepressionCorpus(torch.utils.data.Dataset):
                                 for e in embeddings], dim=0)
 
         embeddings = get_mean(embeddings, masks)
-
         return embeddings
 
     def get_posts_dataframes(self):

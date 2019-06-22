@@ -59,7 +59,7 @@ class ELMo(nn.Module):
         n_ftrs = self.embedding.get_output_dim()
 
         if self.configuration.general["mean"] == "pmean":
-            n_ftrs = n_ftrs * 3
+            n_ftrs = n_ftrs * len(self.configuration.general["pmean"])
 
         self.fc = nn.Sequential(
             nn.Linear(n_ftrs, n_ftrs//2),
@@ -89,15 +89,16 @@ class ELMo(nn.Module):
 
         elif self.configuration.general["mean"] == "pmean":
             pmean = PMEAN()
-            pmean_embedding = pmean.PMEAN_embedding(x)
+            means = self.configuration.general["pmean"]
+            pmean_embedding = pmean.PMEAN_embedding(x, masks, means)
             return pmean_embedding
 
         elif self.configuration.general["mean"] == "avg":
             x = x.sum(dim=1)
-            masks = masks.sum(dim=1)
-            masks = torch.repeat_interleave(masks, 
-                        x.size(-1)).view(-1, x.size(-1))
+            masks = masks.sum(dim=1).view(-1, 1).float()
             x = torch.div(x, masks)
+            x[x.isnan()] = 0
+            x[x.isinf()] = 1
             return x
         else:
             raise NotImplementedError
@@ -111,10 +112,14 @@ class FastText(nn.Module):
         super(FastText, self).__init__()
 
         self.fine_tuned = fine_tuned
+        self.config = Config()
         n_ftrs = 300
 
+        if self.config.general["mean"] == "pmean":
+            n_ftrs = n_ftrs * len(self.config.general["pmean"])
+
         self.fc = nn.Sequential(
-            nn.Dropout(0.5),
+            #nn.Dropout(0.5),
             nn.Linear(n_ftrs, n_ftrs//2),
             nn.BatchNorm1d(n_ftrs//2),
             nn.ReLU(),

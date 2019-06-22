@@ -40,6 +40,7 @@ class SentenceEmbeddingExperiment():
         self.embedder = self.model.__name__.lower()
         self.fine_tuned = fine_tuned
         self.config = Config()
+        print("Configuration: ", self.config.general)
 
     def _list_from_tensor(self, tensor):
         return list(tensor.cpu().detach().numpy())
