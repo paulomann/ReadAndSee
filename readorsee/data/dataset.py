@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from allennlp.modules.elmo import batch_to_ids
 from collections import defaultdict
-from readorsee.features.embed_sentence import SIF, PMEAN
+from readorsee.features.sentence_embeddings import SIF, PMEAN
 
 _all_ = ["DepressionCorpus"]
 
@@ -173,7 +173,6 @@ class DepressionCorpus(torch.utils.data.Dataset):
         def get_mean(x, masks):
 
             if self.config.general["mean"] == "sif":
-                print("SIF MEAN")
                 sif = SIF()
                 sif_embeddings = sif.SIF_embedding(x, masks, self.sif_weights)
                 return sif_embeddings

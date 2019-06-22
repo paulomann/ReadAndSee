@@ -2,8 +2,8 @@
     "general":{
         "batch":32,
         "shuffle":true,
-        "epochs":35,
-	    "mean": "avg"
+        "epochs":15,
+	    "mean": "pmean"
     },
     "img":{
         "optimizer":{

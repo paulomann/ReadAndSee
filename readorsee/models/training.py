@@ -20,10 +20,11 @@ class Trainer():
         self.device = torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = model.to(self.device)
-        print("Using device ", self.device)
-        # if torch.cuda.device_count() > 1:
-        #    print("Using {} GPUs!".format(torch.cuda.device_count()))
-        #    self.model = nn.DataParallel(model)
+        if torch.cuda.device_count() > 1:
+           print("Using {} GPUs!".format(torch.cuda.device_count()))
+           self.model = nn.DataParallel(model)
+        else:
+            print("Using device ", self.device)
         self.dataset_sizes = dataset_sizes
         self.dataloaders = dataloaders
         self.criterion = criterion

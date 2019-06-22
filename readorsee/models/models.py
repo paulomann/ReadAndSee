@@ -4,7 +4,7 @@ import torch
 from allennlp.modules.elmo import Elmo, batch_to_ids
 from readorsee import settings
 from readorsee.data.models import Config
-from readorsee.features.embed_sentence import SIF, PMEAN
+from readorsee.features.sentence_embeddings import SIF, PMEAN
 
 class ResNet(nn.Module):
 
@@ -55,7 +55,12 @@ class ELMo(nn.Module):
 
         self.embedding = Elmo(options_path, weights_path, 1, dropout=0.5,
                               scalar_mix_parameters=[0, 0, 1])
+
         n_ftrs = self.embedding.get_output_dim()
+
+        if self.configuration.general["mean"] == "pmean":
+            n_ftrs = n_ftrs * 3
+
         self.fc = nn.Sequential(
             nn.Linear(n_ftrs, n_ftrs//2),
             nn.BatchNorm1d(n_ftrs//2),
@@ -83,7 +88,9 @@ class ELMo(nn.Module):
             return sif_embeddings
 
         elif self.configuration.general["mean"] == "pmean":
-            raise NotImplementedError
+            pmean = PMEAN()
+            pmean_embedding = pmean.PMEAN_embedding(x)
+            return pmean_embedding
 
         elif self.configuration.general["mean"] == "avg":
             x = x.sum(dim=1)
@@ -115,7 +122,7 @@ class FastText(nn.Module):
         )
 
     def forward(self, x):
-        x = self.fc(x)
+        x = self.fc(x).squeeze()
         return x
 
     def init_weight(self, dataset, days):

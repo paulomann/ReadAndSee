@@ -34,6 +34,8 @@ class Predictor():
             self.model = self.model.to(self.device)
 
     def _list_from_tensor(self, tensor):
+        if tensor.numel() == 1:
+            return [tensor.item()]
         return list(tensor.cpu().detach().numpy())
     
     def predict(self, dataloader, threshold=0.5):

@@ -25,22 +25,21 @@ class SentenceEmbeddingExperiment():
     with AVG, SIF, and PMEAN aggregators.
 
     Fist we train the model for the parameters specified in the 
-    settings.PATH_TO_CLFS_OPTIONS, next we make the predictions for the
+    settings.PATH_TO_CLFS_OPTIONS, next we make the predictions
+    and calculate the Precision, Recall and F1 scores.
 
     """
 
-    def __init__(self, model, data_type, fine_tuned):
+    def __init__(self, model, fine_tuned):
         """ 
         model   = the model class to be instantiated, not the instantiated 
                   class itself
-        data_type = ["txt", "img", "both"]
         fine_tuned = True for fine_tuned model
         """
         self.model = model
         self.embedder = self.model.__name__.lower()
-        self.data_type = data_type
         self.fine_tuned = fine_tuned
-        self.configuration = Config()
+        self.config = Config()
 
     def _list_from_tensor(self, tensor):
         return list(tensor.cpu().detach().numpy())
@@ -59,8 +58,11 @@ class SentenceEmbeddingExperiment():
                     days, dataset
                 ))
                 model = self.instantiate_model()
-                model = self.train_model(model, days, dataset,
-                                         fasttext, training_verbose)
+                model = self.train_model(model,
+                                         days,
+                                         dataset,
+                                         fasttext,
+                                         training_verbose)
                 test_loader = self._get_loader(days, fasttext, dataset)
                 predictor = Predictor(model)
                 metrics = predictor.predict(test_loader, threshold)
@@ -77,12 +79,16 @@ class SentenceEmbeddingExperiment():
     def _get_loader(self, days, fasttext, dataset):
 
         test = DepressionCorpus(observation_period=days, 
-            subset="test", data_type=self.data_type, fasttext=fasttext, 
-            text_embedder=self.embedder, dataset=dataset)
+                                subset="test",
+                                data_type="txt",
+                                fasttext=fasttext, 
+                                text_embedder=self.embedder,
+                                dataset=dataset)
             
         test_loader = DataLoader(test,
-                        batch_size=self.configuration.general["batch"],
-                        shuffle=self.configuration.general["shuffle"])
+                                 batch_size=self.config.general["batch"],
+                                 shuffle=self.config.general["shuffle"],
+                                 drop_last=True)
         return test_loader
 
     def print_metrics(self, days, metrics):
@@ -100,9 +106,9 @@ class SentenceEmbeddingExperiment():
 
         criterion = nn.BCEWithLogitsLoss()
         parameters = filter(lambda p: p.requires_grad, model.parameters())
-        general = self.configuration.general
-        optimizer = getattr(self.configuration, self.data_type)["optimizer"]
-        scheduler = getattr(self.configuration, self.data_type)["scheduler"]
+        general = self.config.general
+        optimizer = self.config.txt["optimizer"]
+        scheduler = self.config.txt["scheduler"]
         optimizer_ft = optim.SGD(parameters, 
                               lr=optimizer["lr"], 
                               momentum=optimizer["momentum"],
@@ -111,24 +117,40 @@ class SentenceEmbeddingExperiment():
         exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft,
                                                step_size=scheduler["step_size"],
                                                gamma=scheduler["gamma"])
-        train = DepressionCorpus(observation_period=days, subset="train",
-                        data_type=self.data_type, fasttext=fasttext,
-                        text_embedder=self.embedder, dataset=dataset)
-        train_loader = DataLoader(train, batch_size=general["batch"], 
-                                  shuffle=general["shuffle"])
-        val = DepressionCorpus(observation_period=days, subset="val",
-                               data_type=self.data_type, fasttext=fasttext,
-                               text_embedder=self.embedder, dataset=dataset)
+        train = DepressionCorpus(observation_period=days,
+                                 subset="train",
+                                 data_type="txt",
+                                 fasttext=fasttext,
+                                 text_embedder=self.embedder,
+                                 dataset=dataset)
 
-        val_loader = DataLoader(val, batch_size=general["batch"],
-                                shuffle=general["shuffle"])
+        train_loader = DataLoader(train,
+                                  batch_size=general["batch"], 
+                                  shuffle=general["shuffle"],
+                                  drop_last=True)
+                                  
+        val = DepressionCorpus(observation_period=days,
+                               subset="val",
+                               data_type="txt",
+                               fasttext=fasttext,
+                               text_embedder=self.embedder,
+                               dataset=dataset)
+
+        val_loader = DataLoader(val, 
+                                batch_size=general["batch"],
+                                shuffle=general["shuffle"],
+                                drop_last=True)
 
         dataloaders = {"train": train_loader, "val": val_loader}
         dataset_sizes = {"train": len(train), "val": len(val)}
 
-        trainer = Trainer(model, dataloaders, dataset_sizes,
-                          criterion, optimizer_ft,
-                          exp_lr_scheduler, general["epochs"])
+        trainer = Trainer(model,
+                          dataloaders,
+                          dataset_sizes,
+                          criterion,
+                          optimizer_ft,
+                          exp_lr_scheduler,
+                          general["epochs"])
 
         trained_model = trainer.train_model(verbose)
         return trained_model
