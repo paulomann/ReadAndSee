@@ -1,5 +1,6 @@
 {
     "general":{
+        "gpus": [0,1],
         "batch":32,
         "shuffle":true,
         "epochs":35,
@@ -9,10 +10,12 @@
     "img":{
         "optimizer":{
             "type":"sgd",
-            "lr":0.0001,
-            "weight_decay":0.0001,
-            "momentum":0.9,
-            "nesterov":true
+            "params": {
+                "lr":0.0001,
+                "weight_decay":0.0001,
+                "momentum":0.9,
+                "nesterov":true
+            }
         },
         "scheduler":{
             "step_size":7,
@@ -21,11 +24,13 @@
     },
     "txt":{
         "optimizer":{
-            "type":"sgd",
-            "lr":0.01,
-            "weight_decay":0.0001,
-            "momentum":0.9,
-            "nesterov":true
+            "type": "SGD",
+            "params": {
+                "lr":0.01,
+                "weight_decay":0.0001,
+                "momentum":0.9,
+                "nesterov":true
+            }
         },
         "scheduler":{
             "step_size":7,

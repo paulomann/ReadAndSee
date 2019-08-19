@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
-from readorsee.models.training import Trainer
+from readorsee.models.training import train_model
 from readorsee.data.models import Config
 import torch.optim as optim
 from torch.optim import lr_scheduler
@@ -40,7 +40,9 @@ class SentenceEmbeddingExperiment():
         self.embedder = self.model.__name__.lower()
         self.fine_tuned = fine_tuned
         self.config = Config()
-        print("Configuration: ", self.config.general)
+        print(f"\tGeneral Configuration: {self.config.general}\n" \
+              f"\tTXT Configuration: {self.config.txt}\n" \
+              f"\tIMG Configuration: {self.config.img}")
 
     def _list_from_tensor(self, tensor):
         return list(tensor.cpu().detach().numpy())
@@ -59,11 +61,13 @@ class SentenceEmbeddingExperiment():
                     days, dataset
                 ))
                 model = self.instantiate_model()
-                model = self.train_model(model,
-                                         days,
-                                         dataset,
-                                         fasttext,
-                                         training_verbose)
+                model = train_model(model,
+                                    days,
+                                    dataset,
+                                    self.embedder,
+                                    fasttext,
+                                    self.config,
+                                    training_verbose)
                 test_loader = self._get_loader(days, fasttext, dataset)
                 predictor = Predictor(model)
                 metrics = predictor.predict(test_loader, threshold)
@@ -103,58 +107,58 @@ class SentenceEmbeddingExperiment():
             settings.PATH_TO_FASTTEXT_PT_EMBEDDINGS, encoding="utf-8")
         return fasttext
     
-    def train_model(self, model, days, dataset, fasttext, verbose):
+    # def train_model(self, model, days, dataset, fasttext, verbose):
 
-        criterion = nn.BCEWithLogitsLoss()
-        parameters = filter(lambda p: p.requires_grad, model.parameters())
-        general = self.config.general
-        optimizer = self.config.txt["optimizer"]
-        scheduler = self.config.txt["scheduler"]
-        optimizer_ft = optim.SGD(parameters, 
-                              lr=optimizer["lr"], 
-                              momentum=optimizer["momentum"],
-                              weight_decay=optimizer["weight_decay"],
-                              nesterov=optimizer["nesterov"])
-        exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft,
-                                               step_size=scheduler["step_size"],
-                                               gamma=scheduler["gamma"])
-        train = DepressionCorpus(observation_period=days,
-                                 subset="train",
-                                 data_type="txt",
-                                 fasttext=fasttext,
-                                 text_embedder=self.embedder,
-                                 dataset=dataset)
+    #     criterion = nn.BCEWithLogitsLoss()
+    #     parameters = filter(lambda p: p.requires_grad, model.parameters())
+    #     general = self.config.general
+    #     optimizer = self.config.txt["optimizer"]
+    #     scheduler = self.config.txt["scheduler"]
+    #     optimizer_ft = optim.SGD(parameters, 
+    #                           lr=optimizer["lr"], 
+    #                           momentum=optimizer["momentum"],
+    #                           weight_decay=optimizer["weight_decay"],
+    #                           nesterov=optimizer["nesterov"])
+    #     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft,
+    #                                            step_size=scheduler["step_size"],
+    #                                            gamma=scheduler["gamma"])
+    #     train = DepressionCorpus(observation_period=days,
+    #                              subset="train",
+    #                              data_type="txt",
+    #                              fasttext=fasttext,
+    #                              text_embedder=self.embedder,
+    #                              dataset=dataset)
 
-        train_loader = DataLoader(train,
-                                  batch_size=general["batch"], 
-                                  shuffle=general["shuffle"],
-                                  drop_last=True)
+    #     train_loader = DataLoader(train,
+    #                               batch_size=general["batch"], 
+    #                               shuffle=general["shuffle"],
+    #                               drop_last=True)
                                   
-        val = DepressionCorpus(observation_period=days,
-                               subset="val",
-                               data_type="txt",
-                               fasttext=fasttext,
-                               text_embedder=self.embedder,
-                               dataset=dataset)
+    #     val = DepressionCorpus(observation_period=days,
+    #                            subset="val",
+    #                            data_type="txt",
+    #                            fasttext=fasttext,
+    #                            text_embedder=self.embedder,
+    #                            dataset=dataset)
 
-        val_loader = DataLoader(val, 
-                                batch_size=general["batch"],
-                                shuffle=general["shuffle"],
-                                drop_last=True)
+    #     val_loader = DataLoader(val, 
+    #                             batch_size=general["batch"],
+    #                             shuffle=general["shuffle"],
+    #                             drop_last=True)
 
-        dataloaders = {"train": train_loader, "val": val_loader}
-        dataset_sizes = {"train": len(train), "val": len(val)}
+    #     dataloaders = {"train": train_loader, "val": val_loader}
+    #     dataset_sizes = {"train": len(train), "val": len(val)}
 
-        trainer = Trainer(model,
-                          dataloaders,
-                          dataset_sizes,
-                          criterion,
-                          optimizer_ft,
-                          exp_lr_scheduler,
-                          general["epochs"])
+    #     trainer = Trainer(model,
+    #                       dataloaders,
+    #                       dataset_sizes,
+    #                       criterion,
+    #                       optimizer_ft,
+    #                       exp_lr_scheduler,
+    #                       general["epochs"])
 
-        trained_model = trainer.train_model(verbose)
-        return trained_model
+    #     trained_model = trainer.train_model(verbose)
+    #     return trained_model
 
     def instantiate_model(self):
         model = self.model(self.fine_tuned)

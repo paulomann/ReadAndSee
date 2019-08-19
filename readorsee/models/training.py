@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 import copy
 import time
 from readorsee.data.dataset import DepressionCorpus
+from readorsee.data.models import Config
 from readorsee.models.models import ELMo, ResNet, FastText
 from gensim.models.fasttext import load_facebook_model
 import json
@@ -15,14 +16,17 @@ class Trainer():
 
     def __init__(self, model, dataloaders, dataset_sizes, criterion, optimizer, 
                  scheduler, num_epochs=100, threshold=0.5):
+        self.config = Config()
+        general_config = self.config.general
+        gpus = general_config["gpus"]
         self.acc_loss = {"train": {"loss": [], "acc": []}, 
                          "val": {"loss": [], "acc": []}}
         self.device = torch.device(
-            "cuda:0" if torch.cuda.is_available() else "cpu")
+            f"cuda:{gpus[0]}" if torch.cuda.is_available() else "cpu")
         self.model = model.to(self.device)
-        if torch.cuda.device_count() > 1:
-           print("Using {} GPUs!".format(torch.cuda.device_count()))
-           self.model = nn.DataParallel(model)
+        if len(gpus) > 1:
+           print(f"Using {gpus} GPUs!")
+           self.model = nn.DataParallel(model, device_ids=gpus)
         else:
             print("Using device ", self.device)
         self.dataset_sizes = dataset_sizes
@@ -110,3 +114,58 @@ class Trainer():
         # load best model weights
         self.model.load_state_dict(best_model_wts)
         return self.model
+
+def train_model(model, days, dataset, embedder, fasttext, config, verbose):
+
+    criterion = nn.BCEWithLogitsLoss()
+    parameters = filter(lambda p: p.requires_grad, model.parameters())
+    general = config.general
+    optimizer_name = config.txt["optimizer"]["type"]
+    opt_params = config.txt["optimizer"]["params"]
+    scheduler = config.txt["scheduler"]
+    optimizer_ft = getattr(optim, optimizer_name)(parameters, **opt_params)
+    # optimizer_ft = optim.SGD(parameters, 
+    #                         lr=optimizer["lr"], 
+    #                         momentum=optimizer["momentum"],
+    #                         weight_decay=optimizer["weight_decay"],
+    #                         nesterov=optimizer["nesterov"])
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft,
+                                            step_size=scheduler["step_size"],
+                                            gamma=scheduler["gamma"])
+    train = DepressionCorpus(observation_period=days,
+                                subset="train",
+                                data_type="txt",
+                                fasttext=fasttext,
+                                text_embedder=embedder,
+                                dataset=dataset)
+
+    train_loader = DataLoader(train,
+                                batch_size=general["batch"], 
+                                shuffle=general["shuffle"],
+                                drop_last=True)
+                                
+    val = DepressionCorpus(observation_period=days,
+                            subset="val",
+                            data_type="txt",
+                            fasttext=fasttext,
+                            text_embedder=embedder,
+                            dataset=dataset)
+
+    val_loader = DataLoader(val, 
+                            batch_size=general["batch"],
+                            shuffle=general["shuffle"],
+                            drop_last=True)
+
+    dataloaders = {"train": train_loader, "val": val_loader}
+    dataset_sizes = {"train": len(train), "val": len(val)}
+
+    trainer = Trainer(model,
+                        dataloaders,
+                        dataset_sizes,
+                        criterion,
+                        optimizer_ft,
+                        exp_lr_scheduler,
+                        general["epochs"])
+
+    trained_model = trainer.train_model(verbose)
+    return trained_model
