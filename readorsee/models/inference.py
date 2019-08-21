@@ -3,6 +3,7 @@ from sklearn.metrics import classification_report
 from sklearn.metrics import precision_recall_fscore_support
 import torch.nn as nn
 from readorsee.data.dataset import DepressionCorpus
+from readorsee.training.metrics import ConfusionMatrix
 import pandas as pd
 from torch.utils.data import DataLoader
 from gensim.models.fasttext import load_facebook_model
@@ -11,7 +12,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
-from readorsee.models.training import Trainer
 from readorsee.data.models import Config
 import torch.optim as optim
 from torch.optim import lr_scheduler
@@ -28,8 +28,10 @@ class Predictor():
         """
         self.model = model
         self.configuration = Config()
+        general_config = self.configuration.general
+        gpus = general_config["gpus"]
         self.device = torch.device(
-            "cuda:0" if torch.cuda.is_available() else "cpu")
+            f"cuda:{gpus[0]}" if torch.cuda.is_available() else "cpu")
         if not next(model.parameters()).is_cuda:
             self.model = self.model.to(self.device)
 
@@ -38,7 +40,7 @@ class Predictor():
             return [tensor.item()]
         return list(tensor.cpu().detach().numpy())
     
-    def predict(self, dataloader, threshold=0.5):
+    def predict(self, dataloader, cm, threshold=0.5):
         self.model.eval()
         logit_threshold = torch.tensor(threshold / (1 - threshold)).log()
         logit_threshold = logit_threshold.to(self.device)
@@ -56,11 +58,13 @@ class Predictor():
             u_names.extend(u_name)
             logits.extend(self._list_from_tensor(outputs))
         #return zip(test_labels, pred_labels, logits, u_names)
-        metrics = precision_recall_fscore_support(
-            y_true=test_labels,
-            y_pred=pred_labels,
-            average="binary")
-        return np.array(metrics[:-1])
+        # metrics = precision_recall_fscore_support(
+        #     y_true=test_labels,
+        #     y_pred=pred_labels,
+        #     average="binary")
+        # return np.array(metrics[:-1])
+        cm.add_experiment(test_labels, pred_labels, logits, u_names, self.configuration)
+        return cm
 
 def plot_confusion_matrix(y_true, y_pred, classes = np.array([0, 1]),
                           normalize=False,

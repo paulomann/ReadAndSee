@@ -108,7 +108,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
         sif_weight = self.sif_weights[idx]
 
         if self.text_embedder == "elmo":
-            if self.config.general["mean"] == "sif":
+            if self.config.txt["mean"] == "sif":
                 caption = (self._elmo[idx], sif_weight)
             else:
                 caption = (self._elmo[idx],)
@@ -172,23 +172,23 @@ class DepressionCorpus(torch.utils.data.Dataset):
 
         def get_mean(x, masks):
 
-            if self.config.general["mean"] == "sif":
+            if self.config.txt["mean"] == "sif":
                 sif = SIF()
                 sif_embeddings = sif.SIF_embedding(x, masks, self.sif_weights)
                 return sif_embeddings
 
-            elif self.config.general["mean"] == "pmean":
+            elif self.config.txt["mean"] == "pmean":
                 pmean = PMEAN()
-                means = self.config.general["pmean"]
+                means = self.config.txt["pmean"]
                 pmean_embedding = pmean.PMEAN_embedding(x, masks, means)
                 return pmean_embedding
 
-            elif self.config.general["mean"] == "avg":
+            elif self.config.txt["mean"] == "avg":
                 x = x.sum(dim=1)
                 masks = masks.sum(dim=1).view(-1, 1).float()
                 x = torch.div(x, masks)
-                x[x.isnan()] = 0
-                x[x.isinf()] = 1
+                x[torch.isnan(x)] = 0
+                x[torch.isinf(x)] = 1
                 return x
             else:
                 raise NotImplementedError

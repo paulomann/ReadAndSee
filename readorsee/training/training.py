@@ -11,6 +11,7 @@ from readorsee.models.models import ELMo, ResNet, FastText
 from gensim.models.fasttext import load_facebook_model
 import json
 
+__all__ = ["Trainer", "train_model"]
 
 class Trainer():
 
@@ -129,20 +130,18 @@ def train_model(model, days, dataset, embedder, fasttext, config, verbose):
     #                         momentum=optimizer["momentum"],
     #                         weight_decay=optimizer["weight_decay"],
     #                         nesterov=optimizer["nesterov"])
-    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft,
-                                            step_size=scheduler["step_size"],
-                                            gamma=scheduler["gamma"])
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, **scheduler)
     train = DepressionCorpus(observation_period=days,
-                                subset="train",
-                                data_type="txt",
-                                fasttext=fasttext,
-                                text_embedder=embedder,
-                                dataset=dataset)
+                             subset="train",
+                             data_type="txt",
+                             fasttext=fasttext,
+                             text_embedder=embedder,
+                             dataset=dataset)
 
     train_loader = DataLoader(train,
-                                batch_size=general["batch"], 
-                                shuffle=general["shuffle"],
-                                drop_last=True)
+                              batch_size=general["batch_size"], 
+                              shuffle=general["shuffle"],
+                              drop_last=True)
                                 
     val = DepressionCorpus(observation_period=days,
                             subset="val",
@@ -152,7 +151,7 @@ def train_model(model, days, dataset, embedder, fasttext, config, verbose):
                             dataset=dataset)
 
     val_loader = DataLoader(val, 
-                            batch_size=general["batch"],
+                            batch_size=general["batch_size"],
                             shuffle=general["shuffle"],
                             drop_last=True)
 
@@ -160,12 +159,12 @@ def train_model(model, days, dataset, embedder, fasttext, config, verbose):
     dataset_sizes = {"train": len(train), "val": len(val)}
 
     trainer = Trainer(model,
-                        dataloaders,
-                        dataset_sizes,
-                        criterion,
-                        optimizer_ft,
-                        exp_lr_scheduler,
-                        general["epochs"])
+                      dataloaders,
+                      dataset_sizes,
+                      criterion,
+                      optimizer_ft,
+                      exp_lr_scheduler,
+                      general["epochs"])
 
     trained_model = trainer.train_model(verbose)
     return trained_model

@@ -58,8 +58,8 @@ class ELMo(nn.Module):
 
         n_ftrs = self.embedding.get_output_dim()
 
-        if self.configuration.general["mean"] == "pmean":
-            n_ftrs = n_ftrs * len(self.configuration.general["pmean"])
+        if self.configuration.txt["mean"] == "pmean":
+            n_ftrs = n_ftrs * len(self.configuration.txt["pmean"])
 
         self.fc = nn.Sequential(
             nn.Linear(n_ftrs, n_ftrs//2),
@@ -82,18 +82,18 @@ class ELMo(nn.Module):
 
     def _get_mean(self, x, masks, sif_weights):
         
-        if self.configuration.general["mean"] == "sif":
+        if self.configuration.txt["mean"] == "sif":
             sif = SIF()
             sif_embeddings = sif.SIF_embedding(x, masks, sif_weights)
             return sif_embeddings
 
-        elif self.configuration.general["mean"] == "pmean":
+        elif self.configuration.txt["mean"] == "pmean":
             pmean = PMEAN()
-            means = self.configuration.general["pmean"]
+            means = self.configuration.txt["pmean"]
             pmean_embedding = pmean.PMEAN_embedding(x, masks, means)
             return pmean_embedding
 
-        elif self.configuration.general["mean"] == "avg":
+        elif self.configuration.txt["mean"] == "avg":
             x = x.sum(dim=1)
             masks = masks.sum(dim=1).view(-1, 1).float()
             x = torch.div(x, masks)
@@ -115,8 +115,8 @@ class FastText(nn.Module):
         self.config = Config()
         n_ftrs = 300
 
-        if self.config.general["mean"] == "pmean":
-            n_ftrs = n_ftrs * len(self.config.general["pmean"])
+        if self.config.txt["mean"] == "pmean":
+            n_ftrs = n_ftrs * len(self.config.txt["pmean"])
 
         self.fc = nn.Sequential(
             #nn.Dropout(0.5),
