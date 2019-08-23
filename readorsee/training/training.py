@@ -7,7 +7,7 @@ import copy
 import time
 from readorsee.data.dataset import DepressionCorpus
 from readorsee.data.models import Config
-from readorsee.models.models import ELMo, ResNet, FastText
+from readorsee.models.models import ELMo, ResNet50, ResNet34, ResNet18, FastText
 from gensim.models.fasttext import load_facebook_model
 import json
 
@@ -116,43 +116,43 @@ class Trainer():
         self.model.load_state_dict(best_model_wts)
         return self.model
 
-def train_model(model, days, dataset, embedder, fasttext, config, verbose):
-
+def train_model(model, days, dataset, fasttext, config, verbose):
+    print("===========>")
+    print("TRAIN:")
+    media_type = config.general["media_type"]
+    media_config = getattr(config, media_type)
+    embedder = media_config["embedder"].lower()
+    print(f"Train media_config: {media_config}")
+    print(f"Train media_embedder: {embedder}")
+    print("===========>")
     criterion = nn.BCEWithLogitsLoss()
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     general = config.general
-    optimizer_name = config.txt["optimizer"]["type"]
-    opt_params = config.txt["optimizer"]["params"]
-    scheduler = config.txt["scheduler"]
+    optimizer_name = media_config["optimizer"]["type"]
+    opt_params = media_config["optimizer"]["params"]
+    scheduler = media_config["scheduler"]
     optimizer_ft = getattr(optim, optimizer_name)(parameters, **opt_params)
-    # optimizer_ft = optim.SGD(parameters, 
-    #                         lr=optimizer["lr"], 
-    #                         momentum=optimizer["momentum"],
-    #                         weight_decay=optimizer["weight_decay"],
-    #                         nesterov=optimizer["nesterov"])
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, **scheduler)
     train = DepressionCorpus(observation_period=days,
                              subset="train",
-                             data_type="txt",
                              fasttext=fasttext,
-                             text_embedder=embedder,
                              dataset=dataset)
 
     train_loader = DataLoader(train,
                               batch_size=general["batch_size"], 
                               shuffle=general["shuffle"],
+                              pin_memory=True,
                               drop_last=True)
                                 
     val = DepressionCorpus(observation_period=days,
                             subset="val",
-                            data_type="txt",
                             fasttext=fasttext,
-                            text_embedder=embedder,
                             dataset=dataset)
 
     val_loader = DataLoader(val, 
                             batch_size=general["batch_size"],
                             shuffle=general["shuffle"],
+                            pin_memory=True,
                             drop_last=True)
 
     dataloaders = {"train": train_loader, "val": val_loader}

@@ -1,11 +1,13 @@
 {
     "general":{
-        "gpus": [2],
+        "gpus": [2, 3],
         "batch_size":32,
         "shuffle":true,
-        "epochs":3
+        "epochs":35,
+        "media_type": "txt"
     },
     "img":{
+        "embedder": "ResNext",
         "optimizer":{
             "type":"SGD",
             "params": {
@@ -17,13 +19,13 @@
         },
         "scheduler":{
             "step_size":7,
-            "gamma":0.1
+            "gamma":0.8
         }
     },
     "txt":{
-        "mean": "avg",
+        "mean": "pmean",
         "pmean": ["mean", "max", "min"],
-        "embedder": "FastText",
+        "embedder": "ELMo",
         "optimizer":{
             "type": "SGD",
             "params": {

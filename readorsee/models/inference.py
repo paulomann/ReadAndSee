@@ -57,12 +57,6 @@ class Predictor():
             test_labels.extend(self._list_from_tensor(labels))
             u_names.extend(u_name)
             logits.extend(self._list_from_tensor(outputs))
-        #return zip(test_labels, pred_labels, logits, u_names)
-        # metrics = precision_recall_fscore_support(
-        #     y_true=test_labels,
-        #     y_pred=pred_labels,
-        #     average="binary")
-        # return np.array(metrics[:-1])
         cm.add_experiment(test_labels, pred_labels, logits, u_names, self.configuration)
         return cm
 

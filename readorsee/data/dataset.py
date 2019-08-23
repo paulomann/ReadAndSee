@@ -23,8 +23,7 @@ _all_ = ["DepressionCorpus"]
 class DepressionCorpus(torch.utils.data.Dataset):
 
     def __init__(self, observation_period, dataset,
-                 subset, data_type, fasttext=None,
-                 text_embedder="", transform=None):
+                 subset, fasttext=None, transform=None):
         """
         Params:
         subset: Can take three possible values: (train, test, val)
@@ -36,6 +35,12 @@ class DepressionCorpus(torch.utils.data.Dataset):
         Observation: The best datasets for each period are :
             {'data_60': 1, 'data_212': 1, 'data_365': 5}
         """
+        self.config = Config()
+        text_embedder = ""
+        data_type = self.config.general["media_type"]
+        if data_type in ["txt", "both"]:
+            text_embedder = self.config.txt["embedder"].lower()
+        
         if data_type not in ["img", "txt", "both"]:
             raise ValueError
         
@@ -57,8 +62,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
                 else:
                     self.fasttext = fasttext
             elif text_embedder != "elmo":
-                raise ValueError("{} is not a valid embedder"
-                                .format(text_embedder))
+                raise ValueError(f"{text_embedder} is not a valid embedder")
 
         subset_to_index = {"train": 0, "val": 1, "test": 2}
         subset_idx = subset_to_index[subset]
@@ -74,7 +78,6 @@ class DepressionCorpus(torch.utils.data.Dataset):
         self._raw = self._raw[subset_idx]
         self._data = self._get_posts_list_from_users(self._raw)
 
-        self.config = Config()
         _, sentences, _, _ = zip(*self._data)
         self.sif_weights = SIF.get_SIF_weights(sentences)
 

@@ -6,13 +6,11 @@ from readorsee import settings
 from readorsee.data.models import Config
 from readorsee.features.sentence_embeddings import SIF, PMEAN
 
-class ResNet(nn.Module):
+class ResNet50(nn.Module):
 
-    def __init__(self, resnet_size=50, n_classes=2):
-        super(ResNet, self).__init__()
-
-        self.resnet = getattr(models, "resnet" + str(resnet_size))
-        self.resnet = self.resnet(pretrained=True)
+    def __init__(self):
+        super(ResNet50, self).__init__()
+        self.resnet = models.resnet50(pretrained=True)
 
         # Freezing all layers but layer3, layer4 and avgpool
         c = 0
@@ -26,17 +24,84 @@ class ResNet(nn.Module):
 
         self.resnet.fc = nn.Sequential(
             nn.Dropout(0.5),
-            nn.Linear(n_ftrs, n_classes)
+            nn.Linear(n_ftrs, 1)
         )
 
     def forward(self, x):
         x = self.resnet(x)
-        return x
+        return x.squeeze()
 
+class ResNet34(nn.Module):
+
+    def __init__(self):
+        super(ResNet34, self).__init__()
+        self.resnet = models.resnet34(pretrained=True)
+
+        # Freezing all layers but layer3, layer4 and avgpool
+        c = 0
+        for child in self.resnet.children():
+            c += 1
+            if c < 7:
+                for param in child.parameters():
+                    param.requires_grad = False
+
+        n_ftrs = self.resnet.fc.in_features
+
+        self.resnet.fc = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(n_ftrs, 1)
+        )
+
+    def forward(self, x):
+        x = self.resnet(x)
+        return x.squeeze()
+
+class ResNet18(nn.Module):
+
+    def __init__(self):
+        super(ResNet18, self).__init__()
+        self.resnet = models.resnet18(pretrained=True)
+        n_ftrs = self.resnet.fc.in_features
+        self.resnet.fc = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(n_ftrs, 1)
+        )
+
+    def forward(self, x):
+        x = self.resnet(x)
+        return x.squeeze()
+
+class ResNext(nn.Module):
+    """
+    RexNext pre-trained with 940 million Instagram public images to predict
+    hashtags of these social media images.
+    """
+    def __init__(self):
+        super(ResNext, self).__init__()
+        self.resnext = torch.hub.load(
+            'facebookresearch/WSL-Images', 'resnext101_32x8d_wsl'
+        )
+        c = 0
+        for child in self.resnext.children():
+            c += 1
+            if c < 7:
+                for param in child.parameters():
+                    param.requires_grad = False
+        
+        n_ftrs = self.resnext.fc.in_features
+
+        self.resnext.fc = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(n_ftrs, 1)
+        )
+    
+    def forward(self, x):
+        x = self.resnext(x)
+        return x.squeeze()
 
 class ELMo(nn.Module):
 
-    def __init__(self, fine_tuned):
+    def __init__(self, fine_tuned=False):
         """
         fine_tuned = if False uses the ELMo trained on the wikipedia PT-BR dump.
                      Otherwise uses the ELMo trained on the wikipedia tuned 
@@ -97,15 +162,15 @@ class ELMo(nn.Module):
             x = x.sum(dim=1)
             masks = masks.sum(dim=1).view(-1, 1).float()
             x = torch.div(x, masks)
-            x[x.isnan()] = 0
-            x[x.isinf()] = 1
+            x[torch.isnan(x)] = 0
+            x[torch.isinf(x)] = 1
             return x
         else:
             raise NotImplementedError
 
 
 class FastText(nn.Module):
-    def __init__(self, fine_tuned):
+    def __init__(self, fine_tuned=False):
         """ 
         fine_tuned   = use the fine_tuned model <<Not implemented yet>>
         """
@@ -119,7 +184,6 @@ class FastText(nn.Module):
             n_ftrs = n_ftrs * len(self.config.txt["pmean"])
 
         self.fc = nn.Sequential(
-            #nn.Dropout(0.5),
             nn.Linear(n_ftrs, n_ftrs//2),
             nn.BatchNorm1d(n_ftrs//2),
             nn.ReLU(),
@@ -138,3 +202,11 @@ def init_weight_xavier_uniform(m):
         torch.nn.init.xavier_uniform_(m.weight)
         if m.bias is not None:
             torch.nn.init.zeros_(m.bias)
+
+
+class BoW(nn.Module):
+    def __init__(self):
+        super(BoW, self).__init__()
+    
+    def forward(self, x):
+        pass
