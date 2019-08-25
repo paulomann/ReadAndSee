@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 from allennlp.modules.elmo import batch_to_ids
 from collections import defaultdict
 from readorsee.features.sentence_embeddings import SIF, PMEAN
+from readorsee.features import get_features
 
 _all_ = ["DepressionCorpus"]
 
@@ -246,13 +247,31 @@ class DepressionCorpus(torch.utils.data.Dataset):
         cols_order = get_original_csv_cols_order()
 
         def get_answers_df(participants):
-            questionnaire_answers = []
+            questionnaire_features = []
+            data_features = []
             for profile in participants:
                 answer_dict, keys = profile.get_answer_dict()
-                questionnaire_answers.append(answer_dict)
-
-            df = pd.DataFrame(questionnaire_answers, columns=cols_order + keys)
-            return df
+                data_dict = get_features(profile, self._ob_period)
+                self.swap_features(answer_dict, data_dict)
+                data_features.append(data_dict)
+                questionnaire_features.append(answer_dict)
+            data_features = pd.DataFrame(data_features)
+            questionnaire_features = pd.DataFrame(
+                questionnaire_features, columns=cols_order + keys
+            )
+            questionnaire_features.drop(
+                ["following_count", "followers_count"],
+                inplace=True,
+                axis=1
+            )
+            questionnaire_features = self.delete_rename_and_categorize_cols(
+                questionnaire_features
+            )
+            return pd.concat(
+                [questionnaire_features, data_features],
+                keys=["questionnaire_ftrs", "data_only_ftrs"],
+                axis=1
+            )
 
         return get_answers_df(subset)
 
@@ -261,112 +280,38 @@ class DepressionCorpus(torch.utils.data.Dataset):
                                     "instagram.csv")
         return pd.read_csv(answers_path, encoding="utf-8")
 
-# ds = DepressionCorpus(60, 0, "train", "txt", None, "elmo")
-
-# How to use
-# dc = DepressionCorpus(observation_period=60, dataset=0, subset="train",
-#                       data_type="img")
-# dl = DataLoader(dc, batch_size=4, shuffle=True)
-# dataiter = iter(dl)
-# text, labels = dataiter.next()
-
-def imshow(inp, *args):
-    """ Inp is a batch of images' tensors """
-    inp = torchvision.utils.make_grid(inp) 
-    for i in args:
-        print(i)
-    inp = inp.numpy().transpose((1, 2, 0))  # H x W x C
-    mean = np.array([0.485, 0.456, 0.406])
-    std = np.array([0.229, 0.224, 0.225])
-    inp = std * inp + mean
-    inp = np.clip(inp, 0, 1)
-    plt.imshow(inp)
-    plt.show()
-
-
-# TODO: Reimplement those methods using the DepressionCorpus class to get
-# statistics about the data
-
-    # def get_most_similar_datasets(self, tr_frac=0.6, val_frac=0.2,
-    #                               test_frac=0.2):
-    #     """ Return a dict containing the index of the best dataset for every
-    #     obs. period considered.
-
-    #     Return:
-    #         A dict like {"data_<obs.period>": index}
-    #     """
-    #     bests = {}
-    #     self._raw = self._raw if self._raw else self.load_raw_data()
-
-    #     for key, value in self._raw.items():
-    #         days = int(key.split("_")[1])
-    #         dataset = self._raw[key][0]
-    #         bests[key] = None
-    #         original_ds = np.concatenate([dataset[0], dataset[1], dataset[2]])
-    #         original_bdi_0_frac, original_bdi_1_frac, total_qty = (
-    #                 self._calculate_bdi_qty(original_ds, days))
-
-    #         minimum = [100000000, -1]
-    #         for i, dataset in enumerate(self._raw[key]):
-    #             train_bdi_0_frac, _, tr_qty = (
-    #                 self._calculate_bdi_qty(dataset[0], days))
-    #             val_bdi_0_frac, _, val_qty = (
-    #                 self._calculate_bdi_qty(dataset[1], days))
-    #             test_bdi_0_frac, _, test_qty = (
-    #                 self._calculate_bdi_qty(dataset[2], days))
-
-    #             bdis_fracs = [np.abs(train_bdi_0_frac - original_bdi_0_frac),
-    #                           np.abs(test_bdi_0_frac - original_bdi_0_frac),
-    #                           np.abs(val_bdi_0_frac - original_bdi_0_frac)]
-    #             delta = sum(bdis_fracs)
-    #             qty_fracs = [np.abs(tr_frac - tr_qty/total_qty),
-    #                          np.abs(val_frac - val_qty/total_qty),
-    #                          np.abs(test_frac - test_qty/total_qty)]
-    #             delta += sum(qty_fracs)
-
-    #             if delta < minimum[0]:
-    #                 minimum[0] = delta
-    #                 minimum[1] = i
-    #         bests[key] = minimum[1]
-    #     return bests
-
-    # def _calculate_bdi_qty(self, subset, days):
-
-    #     def get_total_number_of_images(posts):
-    #         total = 0
-    #         for p in posts:
-    #             total += len(p.get_img_path_list())
-    #         return total
-
-    #     bdi_fraction = {0: 0, 1: 0}
-    #     for participant in subset:
-    #         posts = participant.get_posts_from_qtnre_answer_date(days)
-    #         # qty = len(posts)
-    #         qty = get_total_number_of_images(posts)
-    #         bdi = participant.questionnaire.get_binary_bdi()
-    #         bdi_fraction[bdi] += qty
-    #     total = (bdi_fraction[0] + bdi_fraction[1])
-    #     return bdi_fraction[0]/total, bdi_fraction[1]/total, total
-
-    # def print_image_dimensions_means(self):
-    #     self.load_raw_data()
-    #     for key, value in self._raw.items():
-    #         print("-------------------------")
-    #         print("DATASET: {}".format(key))
-    #         dataset = self._raw[key][0]
-    #         train, val, test = dataset[0], dataset[1], dataset[2]
-    #         data = np.concatenate([train, val, test])
-    #         width = height = []
-    #         for user in data:
-    #             for post in user.posts:
-    #                 paths = post.get_img_path_list()
-    #                 for p in paths:
-    #                     img_path = os.path.join(
-    #                         config.PATH_TO_INSTAGRAM_DATA, p)
-    #                     im = Image.open(img_path)
-    #                     w, h = im.size
-    #                     width.append(w)
-    #                     height.append(h)
-
-    #         print("WIDTH MEAN: {}\nHEIGHT MEAN: {}".format(
-    #             sum(width)/len(width), sum(height)/len(height)))
+    def delete_rename_and_categorize_cols(self, df):
+        remove_columns = [
+            "email",
+            "course_name",
+            "form_application_date",
+            "birth_date",
+            "course_name",
+            "twitter_user_name",
+            "accommodation"
+        ]
+        new_df = df.drop(remove_columns, axis=1)
+        convert_cols = [
+            "sex",
+            "household_income",
+            "academic_degree",
+            "scholarship",
+            "works",
+            "depression_diagnosed",
+            "in_therapy",
+            "antidepressants"
+        ]
+        for col in convert_cols:
+            new_df[col] = pd.factorize(new_df[col])[0]
+        new_df.rename(
+            {"instagram_user_name": "id", "binary_bdi": "label"}, 
+            axis=1,
+            inplace=True
+        )
+        return new_df
+    
+    def swap_features(self, bio_ftrs, data_ftrs):
+        data_ftrs["following_count"] = bio_ftrs["following_count"]
+        data_ftrs["followers_count"] = bio_ftrs["followers_count"]
+        del bio_ftrs["following_count"]
+        del bio_ftrs["followers_count"]

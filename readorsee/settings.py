@@ -9,6 +9,7 @@ PATH_TO_PROCESSED_DATA = join(ROOT, "data/processed")
 ENV_VARIABLES = join(ROOT, "instagram_access.env")
 PATH_TO_CLFS_OPTIONS = join(ROOT, "models/options.json")
 PATH_TO_EXPERIMENTS = join(ROOT, "models", "experiments")
+PATH_TO_PT_LIWC = join(ROOT, "data", "LIWC2007_Portugues_win.dic")
 
 # ELMO related variables
 PATH_TO_EXTERNAL_TWITTER_DATA = join(ROOT,

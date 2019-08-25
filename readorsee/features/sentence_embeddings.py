@@ -121,9 +121,14 @@ class PMEAN():
         )
 
     def znorm(self, embeddings):
-        mean = embeddings.mean(dim=1).view(-1,1)
-        std = embeddings.std(dim=1).view(-1,1)
-        return (embeddings - mean).div(std)
+        # Equivalent to https://github.com/UKPLab/arxiv2018-xling-sentence-embeddings/issues/3
+        # without the normalization part
+        mean = embeddings.mean(dim=0)
+        std = embeddings.std(dim=0)
+        embeddings = (embeddings - mean).div(std)
+        embeddings[torch.isnan(embeddings)] = 0.
+        embeddings[torch.isinf(embeddings)] = 1.
+        return embeddings
 
     def PMEAN_embedding(self, embeddings, masks,
                         chosen_operations=["mean","max","min"]):

@@ -62,7 +62,6 @@ class DetectDepressionExperiment():
                     else None)
         results = {self.media_type:{d:{} for d in periods}}
         cm = ConfusionMatrix([0,1])
-        cm.delete_saved_experiments()
 
         print(f"===Using {self.media_type} media")
         for days in periods:
