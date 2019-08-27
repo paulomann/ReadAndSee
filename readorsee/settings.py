@@ -32,3 +32,6 @@ PATH_TO_FT_ELMO_OPTIONS = join(ROOT,
 
 # FastText related variables
 PATH_TO_FASTTEXT_PT_EMBEDDINGS = join(ROOT, "models/fasttext/cc.pt.300.bin.gz")
+
+# BoW variables
+PATH_TO_SERIALIZED_TFIDF = join(ROOT, "models", "bow", "bow.model")

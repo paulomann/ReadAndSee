@@ -205,8 +205,41 @@ def init_weight_xavier_uniform(m):
 
 
 class BoW(nn.Module):
+
     def __init__(self):
         super(BoW, self).__init__()
-    
+
     def forward(self, x):
-        pass
+        x = self.fc(x).squeeze()
+        return x
+    
+    def create_layers(self, n_ftrs):
+        self.fc = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(n_ftrs, n_ftrs//2),
+            nn.BatchNorm1d(n_ftrs//2),
+            nn.ReLU(),
+            nn.Linear(n_ftrs//2, 1)
+        )
+
+
+class MLPClassifier(nn.Module):
+    def __init__(self):
+        super(MLPClassifier, self).__init__()
+        self.config = Config()
+        data_type = self.config.general["media_type"]
+        features = getattr(self.config, data_type)["features"]
+        ftrs_map_n_ftrs = {"data_only_ftrs": 78, "questionnaire_ftrs": 14, "both": 92}
+        n_ftrs = ftrs_map_n_ftrs[features]
+        print("FEATURES SIZE:", n_ftrs)
+        self.fc = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(n_ftrs, n_ftrs//2),
+            nn.BatchNorm1d(n_ftrs//2),
+            nn.ReLU(),
+            nn.Linear(n_ftrs//2, 1)
+        )        
+
+    def forward(self, x):
+        x = self.fc(x).squeeze()
+        return x

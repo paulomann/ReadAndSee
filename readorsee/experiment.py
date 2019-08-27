@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 from gensim.models.fasttext import load_facebook_model
 from readorsee import settings
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
@@ -101,13 +102,13 @@ class DetectDepressionExperiment():
         test_loader = DataLoader(test,
                                  batch_size=self.config.general["batch_size"],
                                  shuffle=self.config.general["shuffle"],
-                                 pin_memory=True,
-                                 drop_last=True)
+                                 pin_memory=True)
         return test_loader
     
     def free_model_memory(self, model):
         del model
         torch.cuda.empty_cache()
+        if self.embedder == "bow": os.remove(settings.PATH_TO_SERIALIZED_TFIDF)
     
     def get_experiment_name(self, media_type, days):
         media_config = getattr(self.config, media_type)
@@ -119,8 +120,13 @@ class DetectDepressionExperiment():
         embedder = embedder.lower()
         aggregator = media_config.get("mean", "")
         exp_name = f"{media_type}_{days}_{embedder}"
-        if aggregator:
+
+        if aggregator and embedder != "bow":
             exp_name = exp_name + f"_{aggregator}"
+        if media_type == "ftrs":
+            features = media_config["features"].replace("_", "-")
+            exp_name = exp_name + f"_{features}"
+
         return exp_name
 
     def print_metrics(self, results, media_type):

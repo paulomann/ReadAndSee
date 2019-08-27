@@ -1,10 +1,10 @@
 {
     "general":{
-        "gpus": [2, 3],
+        "gpus": [2],
         "batch_size":32,
         "shuffle":true,
         "epochs":35,
-        "media_type": "txt"
+        "media_type": "ftrs"
     },
     "img":{
         "embedder": "ResNext",
@@ -25,7 +25,39 @@
     "txt":{
         "mean": "pmean",
         "pmean": ["mean", "max", "min"],
-        "embedder": "ELMo",
+        "embedder": "BoW",
+        "optimizer":{
+            "type": "SGD",
+            "params": {
+                "lr":0.01,
+                "weight_decay":0.001,
+                "momentum":0.9,
+                "nesterov":true
+            }
+        },
+        "scheduler":{
+            "step_size":7,
+            "gamma":0.85
+        }
+    },
+    "both":{
+        "optimizer":{
+            "type": "SGD",
+            "params": {
+                "lr":0.01,
+                "weight_decay":0.001,
+                "momentum":0.9,
+                "nesterov":true
+            }
+        },
+        "scheduler":{
+            "step_size":7,
+            "gamma":0.85
+        }
+    },
+    "ftrs":{
+        "embedder": "MLPClassifier",
+        "features": "data_only_ftrs",
         "optimizer":{
             "type": "SGD",
             "params": {

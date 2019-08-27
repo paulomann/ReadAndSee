@@ -15,6 +15,7 @@ from sklearn.utils.multiclass import unique_labels
 from readorsee.data.models import Config
 import torch.optim as optim
 from torch.optim import lr_scheduler
+from scipy.special import expit
 
 class Predictor():
     """
@@ -57,8 +58,11 @@ class Predictor():
             test_labels.extend(self._list_from_tensor(labels))
             u_names.extend(u_name)
             logits.extend(self._list_from_tensor(outputs))
+        #Take probabilities and not logit
+        logits = expit(logits)
         cm.add_experiment(test_labels, pred_labels, logits, u_names, self.configuration)
         return cm
+        
 
 def plot_confusion_matrix(y_true, y_pred, classes = np.array([0, 1]),
                           normalize=False,

@@ -4,8 +4,10 @@ import csv
 import pandas as pd
 import pickle
 from readorsee import settings
+from readorsee.data.models import Config
 import os
 import glob
+
 
 __all__ = ["ConfusionMatrix"]
 
@@ -211,10 +213,17 @@ class ConfusionMatrix:
         return single_example_metrics
 
     def add_experiment(self, truth, guess, logits, u_id, config):
+        media_type = config.general["media_type"]
+
+        if media_type == "ftrs":
+            self.add_experiment_for_ftrs(truth, guess, logits, u_id, config)
+            return None
+
+        post_params = {"truth": truth, "guess": guess, "logits": logits, "id": u_id}
+
         user_truth, user_guess, logits, ids = self.get_truth_and_guess_for_user(
             truth, guess, logits, u_id
         )
-        post_params = {"truth": truth, "guess": guess, "logits": logits, "id": u_id}
         user_params = {
             "truth": user_truth,
             "guess": user_guess,
@@ -234,6 +243,20 @@ class ConfusionMatrix:
         experiment["post_metrics"] = self.get_all_metrics_and_reset(truth, guess)
         experiment["user_params"] = user_params
         experiment["post_params"] = post_params
+        
+        self._experiments.append(experiment)
+    
+    def add_experiment_for_ftrs(self, truth, guess, logits, u_id, config):
+        user_params = {"truth": truth, "guess": guess, "logits": logits, "id": u_id}
+        experiment = {
+            "user_metrics": None,
+            "user_params": None,
+            "config": config.__dict__,
+        }
+        experiment["user_metrics"] = self.get_all_metrics_and_reset(
+            truth, guess
+        )
+        experiment["user_params"] = user_params
         self._experiments.append(experiment)
 
     def get_truth_and_guess_for_user(self, post_truth, post_guess, post_logits, u_id):
@@ -260,33 +283,27 @@ class ConfusionMatrix:
     def get_mean_metrics_of_all_experiments(self):
         if not self._experiments:
             raise ValueError("There are no experiments to take the mean.")
+        config = Config()
 
+        if config.general["media_type"] == "ftrs":
+            return self.get_mean_metrics("user_metrics"), None
+        
+        return self.get_mean_metrics("user_metrics"), self.get_mean_metrics("post_metrics")
+
+    def get_mean_metrics(self, name):
         precision = []
         recall = []
         f1 = []
         for exp in self._experiments:
-            precision.append(
-                (exp["user_metrics"]["precision"], exp["post_metrics"]["precision"])
-            )
-            recall.append((exp["user_metrics"]["recall"], exp["post_metrics"]["recall"]))
-            f1.append((exp["user_metrics"]["f1"], exp["post_metrics"]["f1"]))
-
-        user_precision, post_precision = zip(*precision)
-        user_recall, post_recall = zip(*recall)
-        user_f1, post_f1 = zip(*f1)
-
-        user_results = {
-            "precision": np.mean(user_precision),
-            "recall": np.mean(user_recall),
-            "f1": np.mean(user_f1),
+            precision.append(exp[name]["precision"])
+            recall.append(exp[name]["recall"])
+            f1.append(exp[name]["f1"])
+        results = {
+            "precision": np.mean(precision),
+            "recall": np.mean(recall),
+            "f1": np.mean(f1)
         }
-
-        post_results = {
-            "precision": np.mean(post_precision),
-            "recall": np.mean(post_recall),
-            "f1": np.mean(post_f1)
-        }
-        return user_results, post_results
+        return results
 
     def save_experiments(self, experiment_name):
         path = settings.PATH_TO_EXPERIMENTS
