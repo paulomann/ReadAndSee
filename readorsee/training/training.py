@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 import copy
 import time
 from readorsee.data.dataset import DepressionCorpus
+from readorsee.optim import over9000
 from readorsee.data.models import Config
 from readorsee.models.models import ELMo, ResNet50, ResNet34, ResNet18, FastText
 from gensim.models.fasttext import load_facebook_model
@@ -142,7 +143,13 @@ def train_model(model, days, dataset, fasttext, config, verbose):
     optimizer_name = media_config["optimizer"]["type"]
     opt_params = media_config["optimizer"]["params"]
     scheduler = media_config["scheduler"]
-    optimizer_ft = getattr(optim, optimizer_name)(parameters, **opt_params)
+
+    if hasattr(optim, optimizer_name):
+        optimizer_ft = getattr(optim, optimizer_name)(parameters, **opt_params)
+    else:
+        print(f"Using {optimizer_name} optimizer")
+        optimizer_ft = getattr(over9000, optimizer_name)(parameters, **opt_params)
+        
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, **scheduler)
 
     train_loader = DataLoader(train,
@@ -173,47 +180,3 @@ def train_model(model, days, dataset, fasttext, config, verbose):
 
     trained_model = trainer.train_model(verbose)
     return trained_model
-
-# def train_ftr_engineering_model():
-#     from sklearn.model_selection import StratifiedShuffleSplit
-#     from sklearn.model_selection import GridSearchCV
-#     from sklearn.svm import SVC
-#     import matplotlib.pyplot as plt
-#     from matplotlib.colors import Normalize
-
-#     class MidpointNormalize(Normalize):
-#         def __init__(self, vmin=None, vmax=None, midpoint=None, clip=False):
-#             self.midpoint = midpoint
-#             Normalize.__init__(self, vmin, vmax, clip)
-#         def __call__(self, value, clip=None):
-#             x, y = [self.vmin, self.midpoint, self.vmax], [0, 0.5, 1]
-#             return np.ma.masked_array(np.interp(value, x, y))
-
-
-#     encoding_types = ["None"]
-
-#     for e_type in encoding_types:
-#         scaler = StandardScaler()
-#         X = scaler.fit_transform(X)
-
-#         C_range = np.logspace(-2, 10, 20)
-#         gamma_range = np.logspace(-9, 3, 20)
-#         param_grid = dict(gamma=gamma_range, C=C_range)
-#         sss = StratifiedShuffleSplit(n_splits=5, test_size=0.3, random_state=42)
-#         grid = GridSearchCV(SVC(), param_grid=param_grid, cv=sss)
-#         grid.fit(X, Y)
-#         print("The best parameters are %s with a score of %0.2f" % (grid.best_params_, grid.best_score_))
-        
-#         scores = grid.cv_results_['mean_test_score'].reshape(len(C_range),
-#                                                             len(gamma_range))
-#         plt.figure(figsize=(8, 6))
-#         plt.subplots_adjust(left=.2, right=0.95, bottom=0.15, top=0.95)
-#         plt.imshow(scores, interpolation='nearest', cmap=plt.cm.hot,
-#                 norm=MidpointNormalize(vmin=0.2, midpoint=0.92))
-#         plt.xlabel('gamma')
-#         plt.ylabel('C')
-#         plt.colorbar()
-#         plt.xticks(np.arange(len(gamma_range)), gamma_range, rotation=45)
-#         plt.yticks(np.arange(len(C_range)), C_range)
-#         plt.title('Validation accuracy')
-#         plt.show()

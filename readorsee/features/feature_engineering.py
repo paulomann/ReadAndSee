@@ -17,7 +17,9 @@ tokenizer = Tokenizer()
 __all__ = ["get_features"]
 
 
-def get_features(profile: InstagramUser, period: int) -> Dict[str, float]:
+def get_features(
+    profile: InstagramUser, period: int
+) -> Tuple[Dict[str, float], Dict[str, float], Dict[str, float]]:
     posts = profile.get_posts_from_qtnre_answer_date(period)
     faces = []
     likes = []
@@ -26,10 +28,9 @@ def get_features(profile: InstagramUser, period: int) -> Dict[str, float]:
     hue = []
     saturation = []
     value = []
-    features = {
+    post_features = {"likes_count": likes, "comments_count": comments}
+    visual_features = {
         "faces_count": faces,
-        "likes_count": likes,
-        "comments_count": comments,
         "hue": hue,
         "saturation": saturation,
         "value": value,
@@ -45,12 +46,22 @@ def get_features(profile: InstagramUser, period: int) -> Dict[str, float]:
         value.append(v)
 
     textual_features = get_textual_features(captions)
-    features_dict = {}
-    for name, ftrs in features.items():
-        d = {f"{name}_mean": np.mean(ftrs), f"{name}_std": np.std(ftrs)}
-        features_dict.update(d)
-    features_dict.update(textual_features)
-    return features_dict
+    visual_features = get_mean_std_from_ftrs(visual_features)
+    post_features = get_mean_std_from_ftrs(post_features)
+    # features_dict.update(textual_features)
+    return post_features, visual_features, textual_features
+
+
+def get_mean_std_from_ftrs(dic):
+    new_dic = {}
+    for name, ftrs in dic.items():
+        d = {
+            f"{name}_mean": np.mean(ftrs),
+            f"{name}_std": np.std(ftrs),
+            f"{name}_count": np.sum(ftrs),
+        }
+        new_dic.update(d)
+    return new_dic
 
 
 def get_visual_features(paths: List[Path]) -> List[float]:

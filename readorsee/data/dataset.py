@@ -97,15 +97,25 @@ class DepressionCorpus(torch.utils.data.Dataset):
             elif text_embedder == "bow":
                 self._bow = self.preprocess_bow()
         elif data_type == "ftrs":
-            self._ftrs = self._get_features()
+            self._ftrs = self.slice_ftrs(self._get_features())
     
     def slice_if_rest_one(self, data):
+        if self.config.general["media_type"] == "ftrs":
+            return data
         size = len(data)
         bs = self.config.general["batch_size"]
+        bs = bs / len(self.config.general["gpus"])
         if size % bs == 1:
-            print(f"MUST DELETE ONE EXAMPLE: size = {size} | bs = {bs}")
             return data[:-1]
         return data
+    
+    def slice_ftrs(self, ftrs):
+        size = ftrs.size(0)
+        bs = self.config.general["batch_size"]
+        bs = bs / len(self.config.general["gpus"])
+        if size % bs == 1:
+            return ftrs[:-1, ...]
+        return ftrs
 
     @property
     def raw(self):
@@ -250,10 +260,8 @@ class DepressionCorpus(torch.utils.data.Dataset):
             corpus = tfidf_vectorizer.fit_transform(corpus)
             with open(settings.PATH_TO_SERIALIZED_TFIDF, "wb") as f:
                 pickle.dump(tfidf_vectorizer, f)
-                print(f"===Saving TFIDFVECTORIZER")
         else:
             with open(settings.PATH_TO_SERIALIZED_TFIDF, "rb") as f:
-                print(f"===Opening TFIDFVECTORIZER")
                 tfidf_vectorizer = pickle.load(f)
             corpus = tfidf_vectorizer.transform(corpus)
         corpus = torch.from_numpy(corpus.toarray()).float()
@@ -294,14 +302,20 @@ class DepressionCorpus(torch.utils.data.Dataset):
 
         def get_answers_df(participants):
             questionnaire_features = []
-            data_features = []
+            post_ftrs_list = []
+            txt_ftrs_list = []
+            vis_ftrs_list = []
             for profile in participants:
                 answer_dict, keys = profile.get_answer_dict()
-                data_dict = get_features(profile, self._ob_period)
-                self.swap_features(answer_dict, data_dict)
-                data_features.append(data_dict)
+                post_ftrs, vis_ftrs, txt_ftrs = get_features(profile, self._ob_period)
+                self.swap_features(answer_dict, post_ftrs)
+                post_ftrs_list.append(post_ftrs)
+                txt_ftrs_list.append(txt_ftrs)
+                vis_ftrs_list.append(vis_ftrs)
                 questionnaire_features.append(answer_dict)
-            data_features = pd.DataFrame(data_features)
+            post_ftrs = pd.DataFrame(post_ftrs_list)
+            txt_ftrs = pd.DataFrame(txt_ftrs_list)
+            vis_ftrs = pd.DataFrame(vis_ftrs_list)
             questionnaire_features = pd.DataFrame(
                 questionnaire_features, columns=cols_order + keys
             )
@@ -314,8 +328,8 @@ class DepressionCorpus(torch.utils.data.Dataset):
                 questionnaire_features
             )
             return pd.concat(
-                [questionnaire_features, data_features],
-                keys=["questionnaire_ftrs", "data_only_ftrs"],
+                [questionnaire_features, post_ftrs, vis_ftrs, txt_ftrs],
+                keys=["questionnaire_ftrs", "post_ftrs", "vis_ftrs", "txt_ftrs"],
                 axis=1
             )
 
@@ -362,7 +376,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
         del bio_ftrs["following_count"]
         del bio_ftrs["followers_count"]
     
-    def _get_features(self) -> Tuple[Tuple[np.array, np.array], Tuple[np.array, np.array]]:
+    def _get_features(self) -> torch.Tensor:
 
         def remove_cols(df):
             df = df.drop([("questionnaire_ftrs", "id")], axis=1)
@@ -372,8 +386,12 @@ class DepressionCorpus(torch.utils.data.Dataset):
         params = getattr(self.config, self.config.general["media_type"])
         users_df = self.get_participants_dataframes()
         users_df = remove_cols(users_df)
-        if params["features"] != "both":
-            users_df = users_df[params["features"]]
+        if params["features"] == "vis_ftrs" or params["features"] == "txt_ftrs":
+            users_df = users_df[[params["features"], "post_ftrs"]]
+        elif params["features"] == "both":
+            users_df = users_df[["txt_ftrs", "vis_ftrs", "post_ftrs"]]
+        else:
+            raise ValueError("Incorrect feature type value.")
         X = torch.from_numpy(users_df.to_numpy()).float()
         return X
         
