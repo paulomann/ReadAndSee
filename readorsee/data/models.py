@@ -9,12 +9,13 @@ class Questionnaire:
     """ Model that takes all information from a participant answer to the
     research questionnaire
     """
+
     def __init__(self, answer_dict):
         """ Every date attribute is according to this pattern: YYY-MM-DD """
         self.form_application_date = answer_dict["form_application_date"]
         self.form_application_date = datetime.strptime(
-                                            self.form_application_date,
-                                            "%Y-%m-%d").date()
+            self.form_application_date, "%Y-%m-%d"
+        ).date()
         self.email = answer_dict["email"]
         self.sex = answer_dict["sex"]
         self.birth_date = answer_dict["birth_date"]
@@ -78,6 +79,7 @@ class Participant:
     Since every participant answer the questionnaire, has a username and a list
     of posts, this is the most general case for instagram or twitter users.
     """
+
     def __init__(self, questionnaire, username, posts):
         self.questionnaire = questionnaire
         self.username = username
@@ -104,9 +106,18 @@ class InstagramUser(Participant):
     Instagram's profile information data model, with the biodemographic
     information
     """
-    def __init__(self, biography, followers_count, following_count,
-                 is_private, posts_count, questionnaire, username,
-                 instagram_posts):
+
+    def __init__(
+        self,
+        biography,
+        followers_count,
+        following_count,
+        is_private,
+        posts_count,
+        questionnaire,
+        username,
+        instagram_posts,
+    ):
         """
         Params:
         questionnaire -- It contains the answer to the questionnaire from this
@@ -129,10 +140,12 @@ class InstagramUser(Participant):
         cols -- Appended Data keys
         """
         binary_bdi = self.questionnaire.get_binary_bdi()
-        instagram_user_data = dict(followers_count=self.followers_count,
-                                   following_count=self.following_count,
-                                   posts_count=self.posts_count,
-                                   binary_bdi=binary_bdi)
+        instagram_user_data = dict(
+            followers_count=self.followers_count,
+            following_count=self.following_count,
+            posts_count=self.posts_count,
+            binary_bdi=binary_bdi,
+        )
         qtnre = super().get_answer_dict().copy()
         qtnre.update(instagram_user_data)
         return qtnre, list(instagram_user_data.keys())
@@ -147,8 +160,7 @@ class InstagramPost:
 
     """
 
-    def __init__(self, img_path_list, caption, likes_count, timestamp,
-                 comments_count):
+    def __init__(self, img_path_list, caption, likes_count, timestamp, comments_count):
         """
         Params:
         instagram_user -- Object from InstagramUser class.
@@ -193,17 +205,45 @@ class InstagramPost:
         return len(face_locations)
 
     def get_dict_representation(self):
-        fce_cnt_mean = sum(self._face_count_list)//len(self._face_count_list)
-        data_dict = dict(caption=self.caption, likes_count=self.likes_count,
-                         date=self.date, comments_count=self.comments_count,
-                         face_count=fce_cnt_mean)
+        fce_cnt_mean = sum(self._face_count_list) // len(self._face_count_list)
+        data_dict = dict(
+            caption=self.caption,
+            likes_count=self.likes_count,
+            date=self.date,
+            comments_count=self.comments_count,
+            face_count=fce_cnt_mean,
+        )
         return data_dict
 
-class Config(object):
+
+# class Config(object):
+
+#     def __init__(self):
+#         options_path = settings.PATH_TO_CLFS_OPTIONS
+
+#         with open(options_path, "r") as f:
+#             options_file = json.load(f)
+#         self.__dict__ = options_file
+
+
+class Config:
+    __instance = None
+
+    @staticmethod
+    def getInstance():
+        """ Static access method. """
+        if Config.__instance == None:
+            Config()
+        return Config.__instance
 
     def __init__(self):
-        options_path = settings.PATH_TO_CLFS_OPTIONS
+        """ Virtually private constructor. """
+        if Config.__instance != None:
+            raise Exception("This class is a Singleton!")
+        else:
+            options_path = settings.PATH_TO_CLFS_OPTIONS
+            with open(options_path, "r") as f:
+                options_file = json.load(f)
+            self.__dict__ = options_file
+            Config.__instance = self
 
-        with open(options_path, "r") as f:
-            options_file = json.load(f)
-        self.__dict__ = options_file

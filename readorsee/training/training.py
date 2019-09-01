@@ -6,9 +6,7 @@ from torch.utils.data import DataLoader
 import copy
 import time
 from readorsee.data.dataset import DepressionCorpus
-from readorsee.optim import over9000
 from readorsee.data.models import Config
-from readorsee.models.models import ELMo, ResNet50, ResNet34, ResNet18, FastText
 from gensim.models.fasttext import load_facebook_model
 import json
 
@@ -18,7 +16,7 @@ class Trainer():
 
     def __init__(self, model, dataloaders, dataset_sizes, criterion, optimizer, 
                  scheduler, num_epochs=100, threshold=0.5):
-        self.config = Config()
+        self.config = Config.getInstance()
         general_config = self.config.general
         gpus = general_config["gpus"]
         self.acc_loss = {"train": {"loss": [], "acc": []}, 
@@ -122,10 +120,7 @@ def train_model(model, days, dataset, fasttext, config, verbose):
     print("TRAIN:")
     media_type = config.general["media_type"]
     media_config = getattr(config, media_type)
-    embedder = media_config.get("embedder", "").lower()
-    print(f"Train media_config: {media_config}")
-    print(f"Train media_embedder: {embedder}")
-    print("===========>")
+    embedder = media_config.get("txt_embedder", "").lower()
 
     train = DepressionCorpus(
         observation_period=days,
@@ -135,7 +130,7 @@ def train_model(model, days, dataset, fasttext, config, verbose):
     )
 
     if embedder == "bow":
-        model.create_layers(train.bow_ftrs_size)
+        model.set_out_ftrs(train.bow_ftrs_size)
 
     criterion = nn.BCEWithLogitsLoss()
     parameters = filter(lambda p: p.requires_grad, model.parameters())
@@ -143,13 +138,7 @@ def train_model(model, days, dataset, fasttext, config, verbose):
     optimizer_name = media_config["optimizer"]["type"]
     opt_params = media_config["optimizer"]["params"]
     scheduler = media_config["scheduler"]
-
-    if hasattr(optim, optimizer_name):
-        optimizer_ft = getattr(optim, optimizer_name)(parameters, **opt_params)
-    else:
-        print(f"Using {optimizer_name} optimizer")
-        optimizer_ft = getattr(over9000, optimizer_name)(parameters, **opt_params)
-        
+    optimizer_ft = getattr(optim, optimizer_name)(parameters, **opt_params)
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, **scheduler)
 
     train_loader = DataLoader(train,

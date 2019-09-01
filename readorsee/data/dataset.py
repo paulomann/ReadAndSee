@@ -39,11 +39,20 @@ class DepressionCorpus(torch.utils.data.Dataset):
         Observation: The best datasets for each period are :
             {'data_60': 1, 'data_212': 1, 'data_365': 5}
         """
-        self.config = Config()
+        self.config = Config.getInstance()
         text_embedder = ""
         data_type = self.config.general["media_type"]
+        media_config = getattr(self.config, data_type)
+
         if data_type in ["txt", "both"]:
-            text_embedder = self.config.txt["embedder"].lower()
+            text_embedder = media_config["txt_embedder"].lower()
+            if text_embedder == "fasttext":
+                if fasttext is None:
+                    raise ValueError
+                else:
+                    self.fasttext = fasttext
+            elif text_embedder not in ["elmo", "bow"]:
+                raise ValueError(f"{text_embedder} is not a valid embedder")
         
         if data_type not in ["img", "txt", "both", "ftrs"]:
             raise ValueError
@@ -58,16 +67,6 @@ class DepressionCorpus(torch.utils.data.Dataset):
                  transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                       std=[0.229, 0.224, 0.225])])
         self._transform = transform
-
-        if data_type in ["txt", "both"]:
-            if text_embedder == "fasttext":
-                if fasttext is None:
-                    raise ValueError
-                else:
-                    self.fasttext = fasttext
-            elif text_embedder not in ["elmo", "bow"]:
-                raise ValueError(f"{text_embedder} is not a valid embedder")
-
         subset_to_index = {"train": 0, "val": 1, "test": 2}
         subset_idx = subset_to_index[subset]
         self.text_embedder = text_embedder
@@ -84,10 +83,6 @@ class DepressionCorpus(torch.utils.data.Dataset):
         self._data = self.slice_if_rest_one(self._data)
         self._users_df = pd.DataFrame()
         self._posts_df = pd.DataFrame()
-
-        if self.config.txt["mean"] == "sif":
-            _, sentences, _, _ = zip(*self._data)
-            self.sif_weights = SIF.get_SIF_weights(sentences)
 
         if data_type in ["txt", "both"]:
             if text_embedder == "elmo":
@@ -147,10 +142,6 @@ class DepressionCorpus(torch.utils.data.Dataset):
                 return (self._ftrs[idx], label, u_name)
 
         if self.text_embedder == "elmo":
-            if self.config.txt["mean"] == "sif":
-                sif_weight = self.sif_weights[idx]
-                caption = (self._elmo[idx], sif_weight)
-            else:
                 caption = (self._elmo[idx],)
         elif self.text_embedder == "fasttext":
             caption = (self._fasttext[idx],)
@@ -212,29 +203,6 @@ class DepressionCorpus(torch.utils.data.Dataset):
     def preprocess_fasttext(self):
         _, texts, _, _ = zip(*self._data)
 
-        def get_mean(x, masks):
-
-            if self.config.txt["mean"] == "sif":
-                sif = SIF()
-                sif_embeddings = sif.SIF_embedding(x, masks, self.sif_weights)
-                return sif_embeddings
-
-            elif self.config.txt["mean"] == "pmean":
-                pmean = PMEAN()
-                means = self.config.txt["pmean"]
-                pmean_embedding = pmean.PMEAN_embedding(x, masks, means)
-                return pmean_embedding
-
-            elif self.config.txt["mean"] == "avg":
-                x = x.sum(dim=1)
-                masks = masks.sum(dim=1).view(-1, 1).float()
-                x = torch.div(x, masks)
-                x[torch.isnan(x)] = 0
-                x[torch.isinf(x)] = 1
-                return x
-            else:
-                raise NotImplementedError
-
         embeddings = []
         for txt in texts:
             text = np.array([self.fasttext.wv[token] for token in txt])
@@ -249,8 +217,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
                      torch.cat([e, torch.zeros((max_size - e.size(0), 300))], 0) 
                                 for e in embeddings], dim=0)
 
-        embeddings = get_mean(embeddings, masks)
-        return embeddings
+        return embeddings, masks
     
     def preprocess_bow(self):
         _, texts, _, _ = zip(*self._data)
@@ -376,7 +343,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
         del bio_ftrs["following_count"]
         del bio_ftrs["followers_count"]
     
-    def _get_features(self) -> torch.Tensor:
+    def get_normalized_df(self) -> pd.DataFrame:
 
         def remove_cols(df):
             df = df.drop([("questionnaire_ftrs", "id")], axis=1)
@@ -392,6 +359,11 @@ class DepressionCorpus(torch.utils.data.Dataset):
             users_df = users_df[["txt_ftrs", "vis_ftrs", "post_ftrs"]]
         else:
             raise ValueError("Incorrect feature type value.")
+        
+        return users_df
+
+    def _get_features(self) -> torch.Tensor:
+        users_df = self.get_normalized_df()
         X = torch.from_numpy(users_df.to_numpy()).float()
         return X
         

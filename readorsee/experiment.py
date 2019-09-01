@@ -10,6 +10,7 @@ from readorsee import settings
 import numpy as np
 import pickle
 import os
+import glob
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
@@ -41,21 +42,29 @@ class DetectDepressionExperiment():
     """
 
     def __init__(self):
-        self.config = Config()
-        media_type = self.config.general["media_type"]
-        self.media_config = getattr(self.config, media_type)
-        self.media_type = media_type
-        model_name = self.media_config["embedder"]
+        self.config = Config.getInstance()
+        self.media_type = self.config.general["media_type"]
+        self.media_config = getattr(self.config, self.media_type)
+        model_name = self.config.general["class_model"]
         self.model = getattr(models, model_name)
-        self.embedder = self.model.__name__.lower()
+        self.embedders = self.get_embedder_names()
         print("======================")
         print(f"Using {self.model.__name__} model")
         print(f"General Configuration: {self.config.general}")
         print(f"Media Configuration: {self.media_config}")
+        print(f"Embedders: {self.embedders}")
         print("======================")
 
     def _list_from_tensor(self, tensor):
         return list(tensor.cpu().detach().numpy())
+    
+    def get_embedder_names(self):
+        if self.media_type == "both":
+            return [self.media_config["txt_embedder"], self.media_config["img_embedder"]]
+        elif self.media_type == "ftrs":
+            return []
+        else:
+            return [self.media_config[self.media_type + "_embedder"]]
 
     def run(self, 
             threshold=0.5,
@@ -64,7 +73,7 @@ class DetectDepressionExperiment():
         ):
 
         datasets = list(range(0,10))
-        fasttext = (self.load_fasttext_model() if self.embedder == "fasttext"
+        fasttext = (self.load_fasttext_model() if "fasttext" in self.embedders
                     else None)
         results = {self.media_type:{d:{} for d in periods}}
         cm = ConfusionMatrix([0,1])
@@ -113,20 +122,16 @@ class DetectDepressionExperiment():
     def free_model_memory(self, model):
         del model
         torch.cuda.empty_cache()
-        if self.embedder == "bow": os.remove(settings.PATH_TO_SERIALIZED_TFIDF)
+        if "bow" in self.embedders: os.remove(settings.PATH_TO_SERIALIZED_TFIDF)
     
     def get_experiment_name(self, media_type, days):
         media_config = getattr(self.config, media_type)
-        embedder = ""
-        if isinstance(media_config["embedder"], str):
-            embedder = media_config["embedder"]
-        elif isinstance(media_config["embedder"], list):
-            embedder = "+".join(media_config["embedder"])
+        embedder = "-".join(self.embedders)
         embedder = embedder.lower()
         aggregator = media_config.get("mean", "")
         exp_name = f"{media_type}_{days}_{embedder}"
 
-        if aggregator and embedder != "bow":
+        if aggregator and "bow" not in self.embedders:
             exp_name = exp_name + f"_{aggregator}"
         if media_type == "ftrs":
             features = media_config["features"].replace("_", "-")
@@ -154,8 +159,6 @@ class DetectDepressionExperiment():
 
     def instantiate_model(self):
         model = self.model()
-        if hasattr(model, "fc"):
-            model.fc.apply(init_weight_xavier_uniform)
         return model
 
 class ExperimentReader():
@@ -175,7 +178,9 @@ class ExperimentReader():
             logits and experiment name for each iteration
         """
         self.folder = settings.PATH_TO_EXPERIMENTS
-        self.files_names = os.listdir(settings.PATH_TO_EXPERIMENTS)
+        self.files_names = glob.glob(
+            self.folder + os.sep + "*.experiment"
+        )
         self.i = 0
         self.size = len(self.files_names)
         self.logits_aggregator = logits_aggregator
@@ -268,6 +273,7 @@ class ExperimentReader():
         users = set(ids)
         Y_true_user = []
         Y_guess_user = []
+        aggregated_user_logits = []
         for user in users:
             
             user_indices = [i for i, x in enumerate(ids) if x == user]
@@ -275,7 +281,6 @@ class ExperimentReader():
             user_true = Y_true[user_indices][0]
             Y_true_user.append(user_true)
             user_guess = None
-            aggregated_user_logits = []
             
             if self.logits_aggregator == "median" or self.logits_aggregator == "mean":
 
@@ -344,7 +349,6 @@ def _plot_roc_and_pr_curves(
         w, k = lc
         y_test = y_tests[i]
         pred_prob = probas[i]
-
         p,r,_ = precision_recall_curve(y_test,pred_prob)
         average_precision = average_precision_score(y_test, pred_prob)
 
@@ -360,3 +364,41 @@ def _plot_roc_and_pr_curves(
     # fig.savefig(save_name + ".pdf", dpi=300, bbox_inches="tight")
 
     plt.show()
+
+def plot_precision_recall_scatter_plot(logits_aggregator, title, save_name=None):
+    df = get_experiments_results_df(logits_aggregator)
+    df.loc[:, "days"] = df["days"].astype(str) + " days"
+    scatter_plot(df, title, save_name)
+
+def scatter_plot(df, title, save_name=None):
+    sns.set_style("whitegrid", {'grid.linestyle': '--'})
+    fig2, ax2 = plt.subplots(1,1, figsize=(7,5))
+    sns.scatterplot(
+        x="precision_mean",
+        y="recall_mean",
+        hue="days",
+        style="name",
+        data=df,
+        s=80,
+        ax=ax2
+    )
+    ax2.set_title(title)
+    handles, labels = ax2.get_legend_handles_labels()
+    labels[0] = "-- Obs. Period --"
+    labels[4] = "-- Models --"
+    # ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5)) 
+    ax2.legend(
+        handles,
+        labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.35),
+        ncol=4
+    )
+    # ax2.set_xticks(np.linspace(0.0, 1.0, num=10))
+    # ax2.set_yticks(np.linspace(0.0, 1.0, num=10))
+    # ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax2.set_xlabel("Precision (mean)")
+    ax2.set_ylabel("Recall (mean)")
+    
+    # if save_name:
+    #     fig2.savefig(save_name, dpi=300, bbox_inches="tight")

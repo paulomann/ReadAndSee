@@ -28,7 +28,7 @@ class Predictor():
                   class itself
         """
         self.model = model
-        self.configuration = Config()
+        self.configuration = Config.getInstance()
         general_config = self.configuration.general
         gpus = general_config["gpus"]
         self.device = torch.device(

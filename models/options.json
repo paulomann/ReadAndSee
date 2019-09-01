@@ -1,34 +1,40 @@
 {
     "general":{
-        "gpus": [2, 3],
-        "batch_size":36,
+        "gpus": [7],
+        "batch_size": 32,
         "shuffle":true,
-        "epochs":35,
-        "media_type": "ftrs"
+        "epochs":30,
+        "media_type": "txt",
+        "class_model": "MeanTxtClassifier"
     },
     "img":{
-        "embedder": "ResNext",
+        "img_embedder": "resnext",
         "optimizer":{
-            "type":"Over9000",
+            "type":"SGD",
             "params": {
-                "lr":0.01,
-                "weight_decay":0.001
+                "lr":0.0001,
+                "weight_decay":0.001,
+                "nesterov": true,
+                "momentum": 0.9
             }
         },
         "scheduler":{
-            "step_size":7,
+            "step_size":5,
             "gamma":0.8
         }
     },
     "txt":{
-        "mean": "avg",
+        "mean": "pmean",
         "pmean": ["mean", "max", "min"],
-        "embedder": "ELMo",
+        "txt_embedder": "elmo",
+        "LSTM": false,
         "optimizer":{
-            "type": "Over9000",
+            "type": "SGD",
             "params": {
                 "lr":0.01,
-                "weight_decay":0.001
+                "weight_decay":0.001,
+                "nesterov": true,
+                "momentum": 0.9
             }
         },
         "scheduler":{
@@ -37,6 +43,11 @@
         }
     },
     "both":{
+        "mean": "pmean",
+        "pmean": ["mean", "max", "min"],
+        "txt_embedder": "elmo",
+        "img_embededer": "resnet34",
+        "LSTM": false,
         "optimizer":{
             "type": "SGD",
             "params": {
@@ -52,13 +63,14 @@
         }
     },
     "ftrs":{
-        "embedder": "MLPClassifier",
-        "features": "both",
+        "features": "txt_ftrs",
         "optimizer":{
-            "type": "Over9000",
+            "type": "SGD",
             "params": {
                 "lr":0.01,
-                "weight_decay":0.001
+                "weight_decay":0.001,
+                "momentum":0.9,
+                "nesterov":true
             }
         },
         "scheduler":{

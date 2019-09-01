@@ -283,7 +283,7 @@ class ConfusionMatrix:
     def get_mean_metrics_of_all_experiments(self):
         if not self._experiments:
             raise ValueError("There are no experiments to take the mean.")
-        config = Config()
+        config = Config.getInstance()
 
         if config.general["media_type"] == "ftrs":
             return self.get_mean_metrics("user_metrics"), None

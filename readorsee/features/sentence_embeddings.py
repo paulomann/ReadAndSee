@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from collections import defaultdict
+from readorsee.data.models import Config
 
 
 class SIF():
@@ -156,3 +157,24 @@ class PMEAN():
         embeddings = torch.stack(sent_embs)
         embeddings = self.znorm(embeddings)
         return embeddings
+
+
+def get_mean(x, masks):
+    config = Config.getInstance()
+    media_config = getattr(config, config.general["media_type"])
+
+    if media_config["mean"] == "pmean":
+        pmean = PMEAN()
+        means = media_config["pmean"]
+        pmean_embedding = pmean.PMEAN_embedding(x, masks, means)
+        return pmean_embedding
+
+    elif media_config["mean"] == "avg":
+        x = x.sum(dim=1)
+        masks = masks.sum(dim=1).view(-1, 1).float()
+        x = torch.div(x, masks)
+        x[torch.isnan(x)] = 0
+        x[torch.isinf(x)] = 1
+        return x
+    else:
+        raise NotImplementedError(f"There is no {media_config['mean']} aggregator.")
