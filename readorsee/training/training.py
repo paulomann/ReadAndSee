@@ -116,7 +116,7 @@ class Trainer():
         return self.model
 
 def train_model(model, days, dataset, fasttext, config, verbose):
-    print("===========>")
+    print("======================")
     print("TRAIN:")
     media_type = config.general["media_type"]
     media_config = getattr(config, media_type)

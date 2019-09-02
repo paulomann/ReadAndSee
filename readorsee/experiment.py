@@ -11,7 +11,6 @@ import numpy as np
 import pickle
 import os
 import glob
-import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
 from readorsee.training import train_model
@@ -45,8 +44,8 @@ class DetectDepressionExperiment():
         self.config = Config.getInstance()
         self.media_type = self.config.general["media_type"]
         self.media_config = getattr(self.config, self.media_type)
-        model_name = self.config.general["class_model"]
-        self.model = getattr(models, model_name)
+        self.model_name = self.config.general["class_model"]
+        self.model = getattr(models, self.model_name)
         self.embedders = self.get_embedder_names()
         print("======================")
         print(f"Using {self.model.__name__} model")
@@ -62,7 +61,7 @@ class DetectDepressionExperiment():
         if self.media_type == "both":
             return [self.media_config["txt_embedder"], self.media_config["img_embedder"]]
         elif self.media_type == "ftrs":
-            return []
+            return ["MLPClf"]
         else:
             return [self.media_config[self.media_type + "_embedder"]]
 
@@ -126,7 +125,7 @@ class DetectDepressionExperiment():
     
     def get_experiment_name(self, media_type, days):
         media_config = getattr(self.config, media_type)
-        embedder = "-".join(self.embedders)
+        embedder = "-".join(self.embedders) + "-" + self.model_name
         embedder = embedder.lower()
         aggregator = media_config.get("mean", "")
         exp_name = f"{media_type}_{days}_{embedder}"

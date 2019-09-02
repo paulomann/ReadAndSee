@@ -329,7 +329,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
             "antidepressants"
         ]
         for col in convert_cols:
-            new_df[col] = pd.factorize(new_df[col])[0]
+            new_df[col] = pd.factorize(new_df[col], sort=True)[0]
         new_df.rename(
             {"instagram_user_name": "id", "binary_bdi": "label"}, 
             axis=1,
@@ -357,6 +357,8 @@ class DepressionCorpus(torch.utils.data.Dataset):
             users_df = users_df[[params["features"], "post_ftrs"]]
         elif params["features"] == "both":
             users_df = users_df[["txt_ftrs", "vis_ftrs", "post_ftrs"]]
+        elif params["features"] == "form_ftrs":
+            return users_df
         else:
             raise ValueError("Incorrect feature type value.")
         
