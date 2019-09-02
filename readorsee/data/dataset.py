@@ -142,9 +142,9 @@ class DepressionCorpus(torch.utils.data.Dataset):
                 return (self._ftrs[idx], label, u_name)
 
         if self.text_embedder == "elmo":
-                caption = (self._elmo[idx],)
+            caption = (self._elmo[idx],)
         elif self.text_embedder == "fasttext":
-            caption = (self._fasttext[idx],)
+            caption = self._fasttext[idx]
         elif self.text_embedder == "bow":
             caption = (self._bow[idx],)
 
@@ -217,7 +217,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
                      torch.cat([e, torch.zeros((max_size - e.size(0), 300))], 0) 
                                 for e in embeddings], dim=0)
 
-        return embeddings, masks
+        return list(zip(embeddings, masks))
     
     def preprocess_bow(self):
         _, texts, _, _ = zip(*self._data)

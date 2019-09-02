@@ -1,11 +1,11 @@
 {
     "general":{
-        "gpus": [7],
+        "gpus": [4],
         "batch_size": 32,
         "shuffle":true,
         "epochs":30,
-        "media_type": "txt",
-        "class_model": "MeanTxtClassifier"
+        "media_type": "both",
+        "class_model": "MultimodalClassifier"
     },
     "img":{
         "img_embedder": "resnext",
@@ -26,7 +26,7 @@
     "txt":{
         "mean": "pmean",
         "pmean": ["mean", "max", "min"],
-        "txt_embedder": "elmo",
+        "txt_embedder": "bow",
         "LSTM": false,
         "optimizer":{
             "type": "SGD",
@@ -46,7 +46,7 @@
         "mean": "pmean",
         "pmean": ["mean", "max", "min"],
         "txt_embedder": "elmo",
-        "img_embededer": "resnet34",
+        "img_embedder": "resnet18",
         "LSTM": false,
         "optimizer":{
             "type": "SGD",
@@ -63,7 +63,7 @@
         }
     },
     "ftrs":{
-        "features": "txt_ftrs",
+        "features": "both",
         "optimizer":{
             "type": "SGD",
             "params": {

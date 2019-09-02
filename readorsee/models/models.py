@@ -8,9 +8,9 @@ import readorsee.features.sentence_embeddings as embed_sentence
 
 
 class ImgFCBlock(nn.Module):
-    def __init__(self, n_ftrs):
+    def __init__(self, n_ftrs, out_ftrs=1):
         super(ImgFCBlock, self).__init__()
-        self.fc = nn.Sequential(nn.Dropout(0.5), nn.Linear(n_ftrs, 1))
+        self.fc = nn.Sequential(nn.Dropout(0.5), nn.Linear(n_ftrs, out_ftrs))
 
     def forward(self, x):
         return self.fc(x).squeeze()
@@ -36,6 +36,7 @@ class ResNet(nn.Module):
         self.resnet = self.get_model(img_embedder.lower())
         freeze_resnet_layers(7, self.resnet)
         n_ftrs = self.resnet.fc.in_features
+        self.out_ftrs = n_ftrs
         self.resnet.fc = ImgFCBlock(n_ftrs)
 
     def forward(self, x):
@@ -43,7 +44,6 @@ class ResNet(nn.Module):
         return x.squeeze()
 
     def get_model(self, embedder_name):
-        print(f"===> Using {embedder_name}")
         if embedder_name == "resnext":
             return torch.hub.load("facebookresearch/WSL-Images", "resnext101_32x8d_wsl")
         else:
@@ -113,9 +113,9 @@ def get_txt_embedder(txt_embedder):
     model = None
     if txt_embedder == "elmo":
         model = ELMo()
-    elif txt_embedder == "FastText":
+    elif txt_embedder == "fasttext":
         model = FastText()
-    elif txt_embedder == "FastText":
+    elif txt_embedder == "bow":
         model = BoW()
     return model
 
@@ -130,14 +130,16 @@ class MeanTxtClassifier(nn.Module):
         print(f"Using {txt_embedder} embedder.")
 
         self.model = get_txt_embedder(txt_embedder)
-        self.out_ftrs = self.model.out_ftrs
-        if media_config["mean"] == "pmean":
-            self.out_ftrs = self.out_ftrs * len(media_config["pmean"])
-        
-        self.fc = TxtFCBlock(self.out_ftrs)
+
+        if hasattr(self.model, "out_ftrs"):
+            self.out_ftrs = self.model.out_ftrs
+            if media_config["mean"] == "pmean":
+                self.out_ftrs = self.out_ftrs * len(media_config["pmean"])
+            
+            self.fc = TxtFCBlock(self.out_ftrs)
     
     def forward(self, x, masks=None):
-        if not masks:
+        if masks is None:
             res = self.model(x)
         else:
             res = self.model(x, masks)
@@ -169,34 +171,41 @@ class MLPClassifier(nn.Module):
         return x
 
 
-class TxtImgClassifier(nn.Module):
+class MultimodalClassifier(nn.Module):
     def __init__(self):
-        super(TxtImgClassifier, self).__init__()
+        super(MultimodalClassifier, self).__init__()
         self.config = Config.getInstance()
         media_type = self.config.general["media_type"]
         media_config = getattr(self.config, media_type)
-        txt_embedder_name = media_config["txt_embedder"]
         use_lstm = media_config["LSTM"]
-        self.common_hidden_ftrs = 64
+        self.common_hidden_units = 64
 
         if not use_lstm:
             self.txt_embedder = MeanTxtClassifier()
         else:
-            raise NotImplementedError("LSTM with fusion is not implemented yet.")
-        self.txt_block = TxtFCBlock(self.txt_embedder.out_ftrs, self.common_hidden_ftrs)
-        self.img_block = ResNet()
-        self.final_fc = nn.Linear(self.common_hidden_ftrs, 1)
+            raise NotImplementedError("LSTM classification is not yet implemented.")
+
+        if hasattr(self.txt_embedder, "out_ftrs"):
+            self.txt_embedder.fc = TxtFCBlock(
+                self.txt_embedder.out_ftrs, self.common_hidden_units
+            )
+        self.resnet = ResNet()
+        self.resnet.resnet.fc = ImgFCBlock(self.resnet.out_ftrs, self.common_hidden_units)
+        self.final_fc = nn.Linear(self.common_hidden_units, 1)
 
     def forward(self, img, txt, mask=None):
+        print("Txt SIZE:", txt.size())
         txt = self.txt_embedder(txt, mask)
-        txt = self.txt_block(txt)
-        img = self.img_block(img)
+        print("Txt SIZE:", txt.size())
+        print("Img SIZE:", img.size())
+        img = self.resnet(img)
+        print("Img SIZE:", img.size())
         x = txt * img
         x = self.final_fc(x)
         return x.squeeze()
     
     def set_out_ftrs(self, out_ftrs):
-        self.txt_embedder.set_out_ftrs(out_ftrs, self.common_hidden_ftrs)
+        self.txt_embedder.set_out_ftrs(out_ftrs, self.common_hidden_units)
 
 def init_weight_xavier_uniform(m):
     if isinstance(m, nn.Linear):
