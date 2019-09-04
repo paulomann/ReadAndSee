@@ -167,16 +167,23 @@ class ExperimentReader():
     recall and f1 scores for post and user levels.
     """
     
-    def __init__(self, logits_aggregator: str, metrics: bool):
+    def __init__(
+        self, logits_aggregator: str, experiments_folder: str = None, metrics: bool = True
+    ):
         """
         Parameters
         ----------
         logits_aggregator: metric to aggregate logits, possible values are: 
             mean, median, and vote
+        experiments_folder: folder name where the *.experiment files are stored
         metrics: True if you want to get metrics, false if you want to get Y_true, Y_guess
             logits and experiment name for each iteration
         """
-        self.folder = settings.PATH_TO_EXPERIMENTS
+        if experiments_folder:
+            self.folder = os.path.join(settings.PATH_TO_EXPERIMENTS, experiments_folder)
+        else:
+            self.folder = settings.PATH_TO_EXPERIMENTS
+
         self.files_names = glob.glob(
             self.folder + os.sep + "*.experiment"
         )
@@ -305,15 +312,15 @@ class ExperimentReader():
         assert len(Y_true_user) == len(Y_guess_user), "Incorrect shape between Y_true and Y_pred"
         return Y_true_user, Y_guess_user, aggregated_user_logits
     
-def get_experiments_results_df(logits_aggregator):
-    exp_reader = ExperimentReader(logits_aggregator, metrics=True)
+def get_experiments_results_df(logits_aggregator, experiments_folder=""):
+    exp_reader = ExperimentReader(logits_aggregator, experiments_folder, metrics=True)
     df = []
     for experiment_metrics in exp_reader:
         df.append(experiment_metrics)
     return pd.DataFrame(df)
 
-def plot_roc_precision_curves_for_users(logits_aggregator):
-    exp_reader = ExperimentReader(logits_aggregator, metrics=False)
+def plot_roc_precision_curves_for_users(logits_aggregator, experiments_folder=""):
+    exp_reader = ExperimentReader(logits_aggregator, experiments_folder, metrics=False)
     for data in exp_reader:
         Y_true = data["Y_true_user"]
         probas = data["aggregated_logits"]
@@ -364,8 +371,10 @@ def _plot_roc_and_pr_curves(
 
     plt.show()
 
-def plot_precision_recall_scatter_plot(logits_aggregator, title, save_name=None):
-    df = get_experiments_results_df(logits_aggregator)
+def plot_precision_recall_scatter_plot(
+    logits_aggregator, experiments_folder="", title="", save_name=None
+):
+    df = get_experiments_results_df(logits_aggregator, experiments_folder)
     df.loc[:, "days"] = df["days"].astype(str) + " days"
     scatter_plot(df, title, save_name)
 

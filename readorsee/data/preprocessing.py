@@ -6,6 +6,7 @@ import json
 from readorsee.data.models import InstagramPost, InstagramUser, Questionnaire
 from readorsee import settings
 import spacy
+from nltk.tokenize import TweetTokenizer
 import operator
 from collections import defaultdict
 import time
@@ -604,4 +605,13 @@ class Tokenizer():
 
             if tk and (" " not in tk):
                 tokens.append(tk)
+        return tokens
+
+class NLTKTokenizer():
+
+    def __init__(self):
+        self.nltk = TweetTokenizer()
+    
+    def tokenize(self, text, remove_hashtags=True):
+        tokens = self.nltk.tokenize(text)
         return tokens

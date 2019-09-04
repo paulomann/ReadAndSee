@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 from PIL import Image
 import os
-from readorsee.data.preprocessing import Tokenizer
+from readorsee.data.preprocessing import Tokenizer, NLTKTokenizer
 from readorsee.data.models import Config
 from gensim.models.fasttext import load_facebook_model
 from torch.utils.data import DataLoader
@@ -74,7 +74,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
         self._subset = subset
         self._dataset = dataset
         self._ob_period = int(observation_period)
-        self._tokenizer = Tokenizer()
+        self._tokenizer = NLTKTokenizer()
         # A list of datasets which in turn are a list
         self._raw = StratifyFacade().load_stratified_data()
         self._raw = self._raw["data_" + str(self._ob_period)][self._dataset]

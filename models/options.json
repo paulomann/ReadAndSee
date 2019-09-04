@@ -1,19 +1,19 @@
 {
     "general":{
-        "gpus": [2],
+        "gpus": [0],
         "batch_size": 32,
         "shuffle":true,
         "epochs":30,
         "media_type": "txt",
-        "class_model": "LSTMTxtClassifier"
+        "class_model": "MeanTxtClassifier"
     },
     "img":{
-        "img_embedder": "resnext",
+        "img_embedder": "resnet34",
         "optimizer":{
             "type":"SGD",
             "params": {
                 "lr":0.0001,
-                "weight_decay":0.001,
+                "weight_decay":0.002,
                 "nesterov": true,
                 "momentum": 0.9
             }
@@ -26,11 +26,11 @@
     "txt":{
         "mean": "pmean",
         "pmean": ["mean", "max", "min"],
-        "txt_embedder": "elmo",
+        "txt_embedder": "bow",
         "LSTM": {
-            "num_layers": 2,
-            "bidirectional": true,
-            "dropout": 0.25
+            "num_layers": 1,
+            "bidirectional": false,
+            "dropout": 0
         },
         "optimizer":{
             "type": "SGD",
