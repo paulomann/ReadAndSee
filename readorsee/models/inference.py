@@ -12,7 +12,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
-from readorsee.data.models import Config
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from scipy.special import expit
@@ -22,13 +21,13 @@ class Predictor():
     Predictor for binary classification problems. 
     """
 
-    def __init__(self, model):
+    def __init__(self, model, config):
         """ 
         model   = the model class to be instantiated, not the instantiated 
                   class itself
         """
         self.model = model
-        self.configuration = Config.getInstance()
+        self.configuration = config
         general_config = self.configuration.general
         gpus = general_config["gpus"]
         self.device = torch.device(
@@ -62,7 +61,7 @@ class Predictor():
         logits = expit(logits)
         cm.add_experiment(test_labels, pred_labels, logits, u_names, self.configuration)
         return cm
-        
+
 
 def plot_confusion_matrix(y_true, y_pred, classes = np.array([0, 1]),
                           normalize=False,

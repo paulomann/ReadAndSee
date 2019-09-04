@@ -6,17 +6,17 @@ from torch.utils.data import DataLoader
 import copy
 import time
 from readorsee.data.dataset import DepressionCorpus
-from readorsee.data.models import Config
 from gensim.models.fasttext import load_facebook_model
 import json
+import numpy as np
 
 __all__ = ["Trainer", "train_model"]
 
 class Trainer():
 
     def __init__(self, model, dataloaders, dataset_sizes, criterion, optimizer, 
-                 scheduler, num_epochs=100, threshold=0.5):
-        self.config = Config.getInstance()
+                 scheduler, config, num_epochs=100, threshold=0.5):
+        self.config = config
         general_config = self.config.general
         gpus = general_config["gpus"]
         self.acc_loss = {"train": {"loss": [], "acc": []}, 
@@ -115,6 +115,9 @@ class Trainer():
         self.model.load_state_dict(best_model_wts)
         return self.model
 
+def _init_fn(worker_id):
+    np.random.seed(12 + worker_id)
+
 def train_model(model, days, dataset, fasttext, config, verbose):
     print("======================")
     print("TRAIN:")
@@ -126,7 +129,8 @@ def train_model(model, days, dataset, fasttext, config, verbose):
         observation_period=days,
         subset="train",
         fasttext=fasttext,
-        dataset=dataset
+        dataset=dataset,
+        config=config
     )
 
     if embedder == "bow":
@@ -142,19 +146,23 @@ def train_model(model, days, dataset, fasttext, config, verbose):
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, **scheduler)
 
     train_loader = DataLoader(train,
-                              batch_size=general["batch_size"], 
+                              batch_size=general["batch_size"],
                               shuffle=general["shuffle"],
-                              pin_memory=True)
-                                
+                              pin_memory=True,
+                              worker_init_fn=_init_fn)
+
     val = DepressionCorpus(observation_period=days,
                             subset="val",
                             fasttext=fasttext,
-                            dataset=dataset)
+                            dataset=dataset,
+                            config=config
+                            )
 
-    val_loader = DataLoader(val, 
+    val_loader = DataLoader(val,
                             batch_size=general["batch_size"],
                             shuffle=general["shuffle"],
-                            pin_memory=True)
+                            pin_memory=True,
+                            worker_init_fn=_init_fn)
 
     dataloaders = {"train": train_loader, "val": val_loader}
     dataset_sizes = {"train": len(train), "val": len(val)}
@@ -165,6 +173,7 @@ def train_model(model, days, dataset, fasttext, config, verbose):
                       criterion,
                       optimizer_ft,
                       exp_lr_scheduler,
+                      config,
                       general["epochs"])
 
     trained_model = trainer.train_model(verbose)

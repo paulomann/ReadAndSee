@@ -4,11 +4,11 @@
         "batch_size": 32,
         "shuffle":true,
         "epochs":30,
-        "media_type": "txt",
-        "class_model": "MeanTxtClassifier"
+        "media_type": "img",
+        "class_model": "ResNet"
     },
     "img":{
-        "img_embedder": "resnet34",
+        "img_embedder": "resnet18",
         "optimizer":{
             "type":"SGD",
             "params": {
@@ -67,7 +67,7 @@
         }
     },
     "ftrs":{
-        "features": "form_ftrs",
+        "features": "both",
         "optimizer":{
             "type": "SGD",
             "params": {

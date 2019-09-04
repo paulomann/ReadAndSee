@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from collections import defaultdict
-from readorsee.data.models import Config
 
 
 class SIF():
@@ -159,8 +158,8 @@ class PMEAN():
         return embeddings
 
 
-def get_mean(x, masks):
-    config = Config.getInstance()
+def get_mean(x, masks, config):
+    config = config
     media_config = getattr(config, config.general["media_type"])
 
     if media_config["mean"] == "pmean":

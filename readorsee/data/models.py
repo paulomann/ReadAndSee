@@ -216,34 +216,11 @@ class InstagramPost:
         return data_dict
 
 
-# class Config(object):
-
-#     def __init__(self):
-#         options_path = settings.PATH_TO_CLFS_OPTIONS
-
-#         with open(options_path, "r") as f:
-#             options_file = json.load(f)
-#         self.__dict__ = options_file
-
-
-class Config:
-    __instance = None
-
-    @staticmethod
-    def getInstance():
-        """ Static access method. """
-        if Config.__instance == None:
-            Config()
-        return Config.__instance
-
-    def __init__(self):
-        """ Virtually private constructor. """
-        if Config.__instance != None:
-            raise Exception("This class is a Singleton!")
-        else:
+class Config(object):
+    def __init__(self, options_path=None):
+        if not options_path:
             options_path = settings.PATH_TO_CLFS_OPTIONS
-            with open(options_path, "r") as f:
-                options_file = json.load(f)
-            self.__dict__ = options_file
-            Config.__instance = self
 
+        with open(options_path, "r") as f:
+            options_file = json.load(f)
+        self.__dict__ = options_file

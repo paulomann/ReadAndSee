@@ -27,7 +27,7 @@ _all_ = ["DepressionCorpus"]
 class DepressionCorpus(torch.utils.data.Dataset):
 
     def __init__(self, observation_period, dataset,
-                 subset, fasttext=None, transform=None):
+                 subset, config, fasttext=None, transform=None):
         """
         Params:
         subset: Can take three possible values: (train, test, val)
@@ -39,7 +39,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
         Observation: The best datasets for each period are :
             {'data_60': 1, 'data_212': 1, 'data_365': 5}
         """
-        self.config = Config.getInstance()
+        self.config = config
         text_embedder = ""
         data_type = self.config.general["media_type"]
         media_config = getattr(self.config, data_type)
@@ -74,7 +74,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
         self._subset = subset
         self._dataset = dataset
         self._ob_period = int(observation_period)
-        self._tokenizer = NLTKTokenizer()
+        self._tokenizer = Tokenizer()
         # A list of datasets which in turn are a list
         self._raw = StratifyFacade().load_stratified_data()
         self._raw = self._raw["data_" + str(self._ob_period)][self._dataset]

@@ -17,3 +17,4 @@ models/elmo/fine_tuned_elmo
 models/elmo/fc_weights/*.hdf5
 models/fasttext/*
 models/experiments/*
+models/experiments_options

@@ -25,7 +25,23 @@ from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score, auc, roc_curve, precision_recall_curve
 import matplotlib.pyplot as plt
 import seaborn as sns
+from typing import *
+import random
+import multiprocessing
 
+Path = str
+seed = 42
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+np.random.seed(seed)  # Numpy module.
+random.seed(seed)  # Python random module.
+torch.manual_seed(seed)
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
+
+def _init_fn(worker_id):
+    np.random.seed(12 + worker_id)
 
 class DetectDepressionExperiment():
     """
@@ -40,8 +56,8 @@ class DetectDepressionExperiment():
 
     """
 
-    def __init__(self):
-        self.config = Config.getInstance()
+    def __init__(self, options_path: Path = None):
+        self.config = Config(options_path)
         self.media_type = self.config.general["media_type"]
         self.media_config = getattr(self.config, self.media_type)
         self.model_name = self.config.general["class_model"]
@@ -89,12 +105,14 @@ class DetectDepressionExperiment():
                                     self.config,
                                     training_verbose)
                 test_loader = self._get_loader(days, fasttext, dataset)
-                predictor = Predictor(model)
+                predictor = Predictor(model, self.config)
                 cm = predictor.predict(test_loader, cm, threshold)
                 self.free_model_memory(model)
             experiment_name = self.get_experiment_name(self.media_type, days)
             print(experiment_name)
-            user_results, post_results = cm.get_mean_metrics_of_all_experiments()
+            user_results, post_results = cm.get_mean_metrics_of_all_experiments(
+                self.config
+            )
             cm.save_experiments(experiment_name)
             cm.reset_experiments()
             results[self.media_type][days] = {"user": user_results, "post": post_results}
@@ -110,12 +128,14 @@ class DetectDepressionExperiment():
         test = DepressionCorpus(observation_period=days, 
                                 subset="test",
                                 fasttext=fasttext,
-                                dataset=dataset)
+                                dataset=dataset,
+                                config=self.config)
             
         test_loader = DataLoader(test,
                                  batch_size=self.config.general["batch_size"],
                                  shuffle=self.config.general["shuffle"],
-                                 pin_memory=True)
+                                 pin_memory=True,
+                                 worker_init_fn=_init_fn)
         return test_loader
     
     def free_model_memory(self, model):
@@ -157,8 +177,18 @@ class DetectDepressionExperiment():
         return fasttext
 
     def instantiate_model(self):
-        model = self.model()
+        model = self.model(self.config)
         return model
+
+def run_all_experiments():
+    path = settings.PATH_TO_EXPERIMENTS_OPTIONS
+    experiments_options = glob.glob(path + os.sep + "*.json")
+    jobs = []
+    for i in range(len(experiments_options)):
+        exp = DetectDepressionExperiment(experiments_options[i])
+        p = multiprocessing.Process(target=exp.run)
+        jobs.append(p)
+        p.start()
 
 class ExperimentReader():
     """
@@ -381,6 +411,7 @@ def plot_precision_recall_scatter_plot(
 def scatter_plot(df, title, save_name=None):
     sns.set_style("whitegrid", {'grid.linestyle': '--'})
     fig2, ax2 = plt.subplots(1,1, figsize=(7,5))
+    filled_markers = ('o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd', 'P', 'X')
     sns.scatterplot(
         x="precision_mean",
         y="recall_mean",
@@ -388,7 +419,8 @@ def scatter_plot(df, title, save_name=None):
         style="name",
         data=df,
         s=80,
-        ax=ax2
+        ax=ax2,
+        markers=filled_markers
     )
     ax2.set_title(title)
     handles, labels = ax2.get_legend_handles_labels()

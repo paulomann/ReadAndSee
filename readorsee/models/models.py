@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch
 from allennlp.modules.elmo import Elmo, batch_to_ids
 from readorsee import settings
-from readorsee.data.models import Config
 import readorsee.features.sentence_embeddings as embed_sentence
 
 
@@ -26,15 +25,15 @@ def freeze_resnet_layers(up_to_10, model):
 
 
 class ResNet(nn.Module):
-    def __init__(self):
+    def __init__(self, config):
         super(ResNet, self).__init__()
-        self.config = Config.getInstance()
+        self.config = config
         media_type = self.config.general["media_type"]
         img_embedder = getattr(self.config, media_type)["img_embedder"]
         print(f"Using {img_embedder} embedder.")
 
         self.resnet = self.get_model(img_embedder.lower())
-        freeze_resnet_layers(7, self.resnet)
+        freeze_resnet_layers(10, self.resnet)
         n_ftrs = self.resnet.fc.in_features
         self.out_ftrs = n_ftrs
         self.resnet.fc = ImgFCBlock(n_ftrs)
@@ -103,8 +102,9 @@ class FastText(nn.Module):
 class BoW(nn.Module):
     def __init__(self):
         super(BoW, self).__init__()
-
+        self.dropout = nn.Dropout(0.5)
     def forward(self, x):
+        x = self.dropout(x)
         return {"representation": x}
 
 
@@ -120,9 +120,9 @@ def get_txt_embedder(txt_embedder):
 
 
 class MeanTxtClassifier(nn.Module):
-    def __init__(self):
+    def __init__(self, config):
         super(MeanTxtClassifier, self).__init__()
-        self.config = Config.getInstance()
+        self.config = config
         media_type = self.config.general["media_type"]
         media_config = getattr(self.config, media_type)
         txt_embedder = media_config["txt_embedder"]
@@ -145,7 +145,7 @@ class MeanTxtClassifier(nn.Module):
         emb = res["representation"]
         if "masks" in res:
             masks = res["masks"]
-            emb = embed_sentence.get_mean(emb, masks)
+            emb = embed_sentence.get_mean(emb, masks, self.config)
         return self.fc(emb).squeeze()
 
     def set_out_ftrs(self, out_ftrs, final_ftrs=1):
@@ -153,9 +153,9 @@ class MeanTxtClassifier(nn.Module):
 
 
 class LSTMTxtClassifier(nn.Module):
-    def __init__(self):
+    def __init__(self, config):
         super(LSTMTxtClassifier, self).__init__()
-        self.config = Config.getInstance()
+        self.config = config
         media_type = self.config.general["media_type"]
         media_config = getattr(self.config, media_type)
         txt_embedder = media_config["txt_embedder"]
@@ -220,9 +220,9 @@ class LSTMTxtClassifier(nn.Module):
 
 
 class MLPClassifier(nn.Module):
-    def __init__(self):
+    def __init__(self, config):
         super(MLPClassifier, self).__init__()
-        self.config = Config.getInstance()
+        self.config = config
         media_type = self.config.general["media_type"]
         features = getattr(self.config, media_type)["features"]
         ftrs_map_n_ftrs = {"vis_ftrs": 20, "txt_ftrs": 72, "both": 84}
@@ -238,16 +238,16 @@ class MLPClassifier(nn.Module):
 
 
 class MultimodalClassifier(nn.Module):
-    def __init__(self):
+    def __init__(self, config):
         super(MultimodalClassifier, self).__init__()
-        self.config = Config.getInstance()
+        self.config = config
         media_type = self.config.general["media_type"]
         media_config = getattr(self.config, media_type)
         use_lstm = media_config["LSTM"]
         self.common_hidden_units = 64
 
         if not use_lstm:
-            self.txt_embedder = MeanTxtClassifier()
+            self.txt_embedder = MeanTxtClassifier(self.config)
         else:
             raise NotImplementedError("LSTM classification is not yet implemented.")
 
