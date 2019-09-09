@@ -17,7 +17,6 @@ from readorsee.training import train_model
 from readorsee.data.models import Config
 import torch.optim as optim
 from torch.optim import lr_scheduler
-from readorsee.models.models import init_weight_xavier_uniform
 from readorsee.models.inference import Predictor
 from readorsee.training.metrics import ConfusionMatrix
 import readorsee.models.models as models
@@ -230,7 +229,7 @@ class ExperimentReader():
             self.i = 0
             raise StopIteration
         else:
-            file_name = self.files_names[self.i]
+            file_name = os.path.basename(self.files_names[self.i])
             with open(os.path.join(self.folder, file_name), "rb") as f:
                 experiment = pickle.load(f)
             self.i += 1
@@ -411,7 +410,9 @@ def plot_precision_recall_scatter_plot(
 def scatter_plot(df, title, save_name=None):
     sns.set_style("whitegrid", {'grid.linestyle': '--'})
     fig2, ax2 = plt.subplots(1,1, figsize=(7,5))
-    filled_markers = ('o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd', 'P', 'X')
+    filled_markers = (
+        'o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd', 'P', 'X'
+    )
     sns.scatterplot(
         x="precision_mean",
         y="recall_mean",

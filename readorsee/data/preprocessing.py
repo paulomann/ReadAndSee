@@ -568,7 +568,7 @@ class TweetsExternalPreProcess(PreProcess):
 class Tokenizer():
 
     def __init__(self):
-        self._nlp = spacy.load("pt_core_news_sm")
+        self._nlp = spacy.load("pt_core_news_sm", disable=["ner", "tagger", "parser"])
 
     def tokenize(self, text, remove_hashtags=True):
         text = text.lower().replace("\n", "").replace("\r", "")

@@ -33,7 +33,7 @@ class ResNet(nn.Module):
         print(f"Using {img_embedder} embedder.")
 
         self.resnet = self.get_model(img_embedder.lower())
-        freeze_resnet_layers(10, self.resnet)
+        freeze_resnet_layers(7, self.resnet)
         n_ftrs = self.resnet.fc.in_features
         self.out_ftrs = n_ftrs
         self.resnet.fc = ImgFCBlock(n_ftrs)
@@ -79,7 +79,11 @@ class ELMo(nn.Module):
         weights_path = settings.PATH_TO_ELMO_WEIGHTS
 
         self.embedding = Elmo(
-            options_path, weights_path, 1, dropout=0.5, scalar_mix_parameters=[0, 0, 1]
+            options_path, 
+            weights_path,
+            num_output_representations=1,
+            dropout=0.5,
+            scalar_mix_parameters=[-9e10, -9e10, 1]
         )
         self.out_ftrs = self.embedding.get_output_dim()
 
@@ -255,7 +259,7 @@ class MultimodalClassifier(nn.Module):
             self.txt_embedder.fc = TxtFCBlock(
                 self.txt_embedder.out_ftrs, self.common_hidden_units
             )
-        self.img_embedder = ResNet()
+        self.img_embedder = ResNet(self.config)
         self.img_embedder.resnet.fc = ImgFCBlock(
             self.img_embedder.out_ftrs, self.common_hidden_units
         )
@@ -270,10 +274,3 @@ class MultimodalClassifier(nn.Module):
 
     def set_out_ftrs(self, out_ftrs):
         self.txt_embedder.set_out_ftrs(out_ftrs, self.common_hidden_units)
-
-
-def init_weight_xavier_uniform(m):
-    if isinstance(m, nn.Linear):
-        torch.nn.init.xavier_uniform_(m.weight)
-        if m.bias is not None:
-            torch.nn.init.zeros_(m.bias)

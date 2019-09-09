@@ -1,12 +1,12 @@
 from readorsee import settings
-from readorsee.data.models import InstagramUser
+from readorsee.data.models import InstagramUser, InstagramPost
 from readorsee.data.preprocessing import Tokenizer
 import h5py
 import os
 import numpy as np
 import pandas as pd
 import liwc
-import cv2
+from skimage import io, color
 from typing import *
 from collections import Counter
 
@@ -28,9 +28,9 @@ def get_features(
     hue = []
     saturation = []
     value = []
-    post_features = {"likes_count": likes, "comments_count": comments}
+    post_features = {"likes": likes, "comments": comments}
     visual_features = {
-        "faces_count": faces,
+        "faces": faces,
         "hue": hue,
         "saturation": saturation,
         "value": value,
@@ -48,7 +48,6 @@ def get_features(
     textual_features = get_textual_features(captions)
     visual_features = get_mean_std_from_ftrs(visual_features)
     post_features = get_mean_std_from_ftrs(post_features)
-    # features_dict.update(textual_features)
     return post_features, visual_features, textual_features
 
 
@@ -72,14 +71,18 @@ def get_visual_features(paths: List[Path]) -> List[float]:
     hsv_list = []
     for path in paths:
         img_path = os.path.join(settings.PATH_TO_INSTAGRAM_DATA, path)
-        img = cv2.imread(img_path)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        avg_color_per_row = np.average(img, axis=0)
-        hsv = np.average(avg_color_per_row, axis=0)
+        img = io.imread(img_path)
+        img = color.rgb2hsv(img)
+        hsv = []
+        for i in range(len(img.shape)):
+            if len(img.shape) == 2:
+                imdata = img[:, i]
+            elif len(img.shape) == 3:
+                imdata = img[:, :, i]
+            avg = np.mean(imdata)
+            hsv.append(avg)
         hsv_list.append(hsv)
-    hsv = np.vstack(hsv_list)
-    hsv = np.mean(hsv, axis=0)
-    return hsv
+    return np.mean(hsv_list, axis=0)
 
 
 def get_textual_features(captions: List[str]) -> Dict[str, float]:
@@ -92,3 +95,15 @@ def get_textual_features(captions: List[str]) -> Dict[str, float]:
     for k, v in counts.items():
         features[k] = v
     return features
+
+
+def get_features_from_post(post: InstagramPost):
+    ftrs = dict(hue=0, saturation=0, value=0)
+    h, s, v = get_visual_features(post.get_img_path_list())
+    textual_ftrs = get_textual_features([post.caption])
+    ftrs["hue"] = h
+    ftrs["saturation"] = s
+    ftrs["value"] = v
+    ftrs = get_mean_std_from_ftrs(ftrs)
+    ftrs.update(textual_ftrs)
+    return ftrs
