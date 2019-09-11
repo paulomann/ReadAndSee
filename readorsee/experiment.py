@@ -144,12 +144,14 @@ class DetectDepressionExperiment():
     
     def get_experiment_name(self, media_type, days):
         media_config = getattr(self.config, media_type)
+        use_lstm = media_config.get("use_lstm", False)
         embedder = "-".join(self.embedders) + "-" + self.model_name
         embedder = embedder.lower()
         aggregator = media_config.get("mean", "")
         exp_name = f"{media_type}_{days}_{embedder}"
 
         if aggregator and "bow" not in self.embedders:
+            if use_lstm: aggregator = "LSTM"
             exp_name = exp_name + f"_{aggregator}"
         if media_type == "ftrs":
             features = media_config["features"].replace("_", "-")
@@ -411,7 +413,7 @@ def scatter_plot(df, title, save_name=None):
     sns.set_style("whitegrid", {'grid.linestyle': '--'})
     fig2, ax2 = plt.subplots(1,1, figsize=(7,5))
     filled_markers = (
-        'o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd', 'P', 'X'
+        'o', 'v', '^', '<', '>', '*', 's', 'p', '8', 'h', 'H', 'D', 'd', 'P', 'X'
     )
     sns.scatterplot(
         x="precision_mean",
@@ -431,9 +433,11 @@ def scatter_plot(df, title, save_name=None):
     ax2.legend(
         handles,
         labels,
-        loc="lower center",
-        bbox_to_anchor=(0.5, -0.35),
-        ncol=4
+        # loc="lower center",
+        # bbox_to_anchor=(0.5, -0.35),
+        loc='center left', 
+        bbox_to_anchor=(1, 0.5),
+        ncol=1
     )
     # ax2.set_xticks(np.linspace(0.0, 1.0, num=10))
     # ax2.set_yticks(np.linspace(0.0, 1.0, num=10))
@@ -441,5 +445,5 @@ def scatter_plot(df, title, save_name=None):
     ax2.set_xlabel("Precision (mean)")
     ax2.set_ylabel("Recall (mean)")
     
-    # if save_name:
-    #     fig2.savefig(save_name, dpi=300, bbox_inches="tight")
+    if save_name:
+        fig2.savefig(save_name + ".pdf", dpi=300, bbox_inches="tight")

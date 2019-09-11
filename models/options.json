@@ -1,11 +1,11 @@
 {
     "general":{
-        "gpus": [2,3],
-        "batch_size": 64,
+        "gpus": [7],
+        "batch_size": 32,
         "shuffle":true,
-        "epochs":35,
+        "epochs":30,
         "media_type": "both",
-        "class_model": "MultimodalClassifier"
+        "class_model": "MultimodalConcatClassifier"
     },
     "img":{
         "img_embedder": "resnext",
@@ -51,11 +51,16 @@
         "pmean": ["mean", "max", "min"],
         "txt_embedder": "elmo",
         "img_embedder": "resnext",
-        "LSTM": false,
+        "use_lstm": false,
+        "LSTM": {
+            "num_layers": 1,
+            "bidirectional": false,
+            "dropout": 0
+        },
         "optimizer":{
             "type": "SGD",
             "params": {
-                "lr":0.001,
+                "lr":0.002,
                 "weight_decay":0.001,
                 "momentum":0.9,
                 "nesterov":true

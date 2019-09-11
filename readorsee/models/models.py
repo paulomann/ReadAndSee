@@ -33,7 +33,7 @@ class ResNet(nn.Module):
         print(f"Using {img_embedder} embedder.")
 
         self.resnet = self.get_model(img_embedder.lower())
-        freeze_resnet_layers(7, self.resnet)
+        freeze_resnet_layers(10, self.resnet)
         n_ftrs = self.resnet.fc.in_features
         self.out_ftrs = n_ftrs
         self.resnet.fc = ImgFCBlock(n_ftrs)
@@ -166,7 +166,7 @@ class LSTMTxtClassifier(nn.Module):
         print(f"Using {txt_embedder} embedder.")
         if txt_embedder not in ["elmo", "fasttext"]:
             raise ValueError("LSTMClassifier only supports elmo and fasttext.")
-        self.hidden_units = 64
+        self.hidden_units = 124
         self.embedder = get_txt_embedder(txt_embedder)
         self.embed_dims = self.embedder.out_ftrs
         self.num_layers = media_config["LSTM"]["num_layers"]
@@ -247,13 +247,13 @@ class MultimodalClassifier(nn.Module):
         self.config = config
         media_type = self.config.general["media_type"]
         media_config = getattr(self.config, media_type)
-        use_lstm = media_config["LSTM"]
+        use_lstm = media_config["use_lstm"]
         self.common_hidden_units = 64
 
         if not use_lstm:
             self.txt_embedder = MeanTxtClassifier(self.config)
         else:
-            raise NotImplementedError("LSTM classification is not yet implemented.")
+            self.txt_embedder = LSTMTxtClassifier(self.config)
 
         if hasattr(self.txt_embedder, "out_ftrs"):
             self.txt_embedder.fc = TxtFCBlock(
@@ -274,3 +274,35 @@ class MultimodalClassifier(nn.Module):
 
     def set_out_ftrs(self, out_ftrs):
         self.txt_embedder.set_out_ftrs(out_ftrs, self.common_hidden_units)
+
+class Identity(nn.Module):
+    def __init__(self):
+        super(Identity, self).__init__()
+        
+    def forward(self, x):
+        return x
+
+class MultimodalConcatClassifier(nn.Module):
+    def __init__(self, config):
+        super(MultimodalConcatClassifier, self).__init__()
+        self.config = config
+        media_type = self.config.general["media_type"]
+        media_config = getattr(self.config, media_type)
+        use_lstm = media_config["use_lstm"]
+        self.img_embedder = ResNet(self.config)
+        self.img_embedder.resnet.fc = Identity()
+        if not use_lstm:
+            self.txt_embedder = MeanTxtClassifier(self.config)
+        else:
+            self.txt_embedder = LSTMTxtClassifier(self.config)
+        self.txt_embedder.fc = Identity()
+        self.out_ftrs = self.img_embedder.out_ftrs + self.txt_embedder.out_ftrs
+        print("MULTIMODAL OUT FEATURES:", self.out_ftrs)
+        self.final_fc = nn.Linear(self.out_ftrs, 1)
+
+    def forward(self, img, txt, mask=None):
+        txt = self.txt_embedder(txt, mask)
+        img = self.img_embedder(img)
+        x = torch.cat([txt,img], dim=1)
+        x = self.final_fc(x)
+        return x.squeeze()        
