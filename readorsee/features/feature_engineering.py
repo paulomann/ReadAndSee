@@ -93,7 +93,7 @@ def get_textual_features(captions: List[str]) -> Dict[str, float]:
     counts = dict(Counter(category for token in tokens_list for category in parse(token)))
     features = dict(zip(category_names, [0] * len(category_names)))
     for k, v in counts.items():
-        features[k] = v
+        features[k] = v/len(captions)
     return features
 
 

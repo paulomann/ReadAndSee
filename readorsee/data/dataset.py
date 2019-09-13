@@ -123,6 +123,12 @@ class DepressionCorpus(torch.utils.data.Dataset):
     @property
     def posts_df(self):
         return self._posts_df
+    
+    def get_users_features_names(self):
+        return self.users_df.columns.levels[1]
+    
+    def get_posts_features_names(self):
+        return self.posts_df.columns.levels[1]
 
     def __len__(self):
         if self._data_type == "ftrs":
@@ -246,7 +252,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
                 d = post.get_dict_representation()
                 d["instagram_username"] = u.username
                 d["binary_bdi"] = u.questionnaire.get_binary_bdi()
-                d["BDI"] = u.questionnaire.get_bdi(False)
+                d["BDI"] = u.questionnaire.get_bdi(category=False)
                 ftrs = get_features_from_post(post)
                 d.update(ftrs)
                 posts_dicts.append(d)
@@ -276,6 +282,8 @@ class DepressionCorpus(torch.utils.data.Dataset):
             vis_ftrs_list = []
             for profile in participants:
                 answer_dict, keys = profile.get_answer_dict()
+                answer_dict["BDI"] = profile.questionnaire.get_bdi(category=False)
+                # keys.append("BDI")
                 post_ftrs, vis_ftrs, txt_ftrs = get_features(profile, self._ob_period)
                 self.swap_features(answer_dict, post_ftrs)
                 post_ftrs_list.append(post_ftrs)
@@ -350,6 +358,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
         def remove_cols(df):
             df = df.drop([("questionnaire_ftrs", "id")], axis=1)
             df = df.drop([("questionnaire_ftrs", "label")], axis=1)
+            df = df.drop([("questionnaire_ftrs", "BDI")], axis=1)
             return df
 
         params = getattr(self.config, self.config.general["media_type"])
@@ -363,70 +372,9 @@ class DepressionCorpus(torch.utils.data.Dataset):
             return users_df
         else:
             raise ValueError("Incorrect feature type value.")
-        
         return users_df
 
     def _get_features(self) -> torch.Tensor:
         users_df = self.get_normalized_df()
         X = torch.from_numpy(users_df.to_numpy()).float()
         return X
-        
-
-# def get_k_fold(days: int) -> Tuple[Tuple[np.array, np.array], Tuple[np.array, np.array]]:
-#     """
-#     Function that is a generator. It is used for the CV split of sklearn.
-
-#     Returns
-#     -------
-#     A generator that returns train and test splits for our particular splitting as
-#     considering the Local Search implemented by us.
-#     """
-#     datasets = list(range(0,10))
-
-#     def get_x_y(df):
-#         df = df.drop([("questionnaire_ftrs", "id")], axis=1)
-#         Y = df["questionnaire_ftrs"]["label"].to_numpy()
-#         df = df.drop([("questionnaire_ftrs", "label")], axis=1)
-#         X = df.to_numpy()
-#         return X, Y
-
-#     def get_train_test_split(dataset):
-#         ds_train = DepressionCorpus(days, dataset, "train")
-#         ds_train = ds_train.get_participants_dataframes()
-#         ds_test = DepressionCorpus(days, dataset, "test")
-#         ds_test = ds_test.get_participants_dataframes()
-#         ds_val = DepressionCorpus(days, dataset, "val")
-#         ds_val = ds_val.get_participants_dataframes()
-#         return ds_train, ds_test, ds_val
-    
-#     def get_ids_list(df_train, df_test, df_val):
-#         train_ids = df_train["questionnaire_ftrs"]["id"].tolist()
-#         test_ids = df_test["questionnaire_ftrs"]["id"].tolist()
-#         val_ids = df_val["questionnaire_ftrs"]["id"].tolist()
-#         return train_ids, test_ids, val_ids
-    
-#     def get_train_test_idx(all_ids, kf_train_ids, kf_test_ids, kf_val_ids):
-#         final_train_ids = [all_ids.index(i) for i in kf_train_ids]
-#         final_test_ids = [all_ids.index(i) for i in kf_test_ids]
-#         final_val_ids = [all_ids.index(i) for i in kf_val_ids]
-#         return (final_train_ids + final_val_ids), final_test_ids
-
-
-#     df_train, df_test, df_val = get_train_test_split(dataset=0)
-#     train_ids, test_ids, val_ids = get_ids_list(df_train, df_test, df_val)
-#     X_train, Y_train = get_x_y(df_train)
-#     X_test, Y_test = get_x_y(df_test)
-#     X_val, Y_val = get_x_y(df_val)
-#     X = np.vstack([X_train, X_val, X_test])
-#     Y = np.concatenate([Y_train, Y_val, Y_test])
-#     yield X, Y
-
-#     for dataset in datasets:
-#         df_train, df_test, df_val = get_train_test_split(dataset)
-#         kf_train_ids, kf_test_ids, kf_val_ids = get_ids_list(df_train, df_test, df_val)
-#         yield get_train_test_idx(
-#             train_ids + val_ids + test_ids,
-#             kf_train_ids,
-#             kf_test_ids,
-#             kf_val_ids
-#         )

@@ -33,7 +33,7 @@ class ResNet(nn.Module):
         print(f"Using {img_embedder} embedder.")
 
         self.resnet = self.get_model(img_embedder.lower())
-        freeze_resnet_layers(10, self.resnet)
+        freeze_resnet_layers(7, self.resnet)
         n_ftrs = self.resnet.fc.in_features
         self.out_ftrs = n_ftrs
         self.resnet.fc = ImgFCBlock(n_ftrs)
@@ -85,6 +85,7 @@ class ELMo(nn.Module):
             dropout=0.5,
             scalar_mix_parameters=[-9e10, -9e10, 1]
         )
+        # scalar_mix_parameters=[-9e10, -9e10, 1]
         self.out_ftrs = self.embedding.get_output_dim()
 
     def forward(self, x):
@@ -298,11 +299,12 @@ class MultimodalConcatClassifier(nn.Module):
         self.txt_embedder.fc = Identity()
         self.out_ftrs = self.img_embedder.out_ftrs + self.txt_embedder.out_ftrs
         print("MULTIMODAL OUT FEATURES:", self.out_ftrs)
-        self.final_fc = nn.Linear(self.out_ftrs, 1)
+        self.final_fc = nn.Sequential(nn.Dropout(0.5), nn.Linear(self.out_ftrs, 1))
 
     def forward(self, img, txt, mask=None):
-        txt = self.txt_embedder(txt, mask)
-        img = self.img_embedder(img)
-        x = torch.cat([txt,img], dim=1)
+        with torch.no_grad():
+            txt = self.txt_embedder(txt, mask)
+            img = self.img_embedder(img)
+            x = torch.cat([txt,img], dim=1)
         x = self.final_fc(x)
         return x.squeeze()        

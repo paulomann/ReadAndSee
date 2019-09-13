@@ -120,7 +120,7 @@ def _init_fn(worker_id):
 
 def train_model(model, days, dataset, fasttext, config, verbose):
     print("======================")
-    print("TRAIN:")
+    print("Training...")
     media_type = config.general["media_type"]
     media_config = getattr(config, media_type)
     embedder = media_config.get("txt_embedder", "").lower()
