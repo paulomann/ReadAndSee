@@ -8,7 +8,7 @@ It's important to note that we **do not** claim that we *predict* depression. Th
 
 # Paper
 
-The publication is available on [arXiv](https://arxiv.org/abs/1912.01131). The paper was accepted on the 15 November 2019 and will appear in the proceedings of [ICWSM 2020](https://www.icwsm.org/2020)
+The publication is available on [arXiv](https://arxiv.org/abs/1912.01131) ("See and Read: Detecting Depression Symptoms in Higher Education Students Using Multimodal Social Media Data"). The paper was accepted on the 15 November 2019 and will appear in the proceedings of [ICWSM 2020](https://www.icwsm.org/2020)
 
 # How to use the code
 
