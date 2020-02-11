@@ -1,33 +1,36 @@
-from readorsee.data.facade import StratifyFacade
-from readorsee import settings
-from readorsee.data.models import Config
-import torch
-from torchvision import transforms
-import torchvision
-import pandas as pd
-import numpy as np
-from PIL import Image
 import os
-from readorsee.data.preprocessing import Tokenizer, NLTKTokenizer
-from readorsee.data.models import Config
-from gensim.models.fasttext import load_facebook_model
-from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
-from allennlp.modules.elmo import batch_to_ids
-from collections import defaultdict
-from readorsee.features.sentence_embeddings import SIF, PMEAN
-from readorsee.features.feature_engineering import get_features, get_features_from_post
-from sklearn.feature_extraction.text import TfidfVectorizer
-from typing import *
 import pickle
+from collections import defaultdict
+from typing import *
 
-_all_ = ["DepressionCorpus"]
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
+import torchvision
+from allennlp.modules.elmo import batch_to_ids
+from gensim.models.fasttext import load_facebook_model
+from PIL import Image
+from sklearn.feature_extraction.text import TfidfVectorizer
+from torch.utils.data import DataLoader
+from torchvision import transforms
+from transformers import BertTokenizer
+import ftfy
+
+from readorsee import settings
+from readorsee.data.facade import StratifyFacade
+from readorsee.data.models import Config
+from readorsee.data.preprocessing import NLTKTokenizer, Tokenizer
+from readorsee.features.feature_engineering import get_features, get_features_from_post
+from readorsee.features.sentence_embeddings import PMEAN, SIF
+
+_all_ = ["DepressionCorpus", "DepressionCorpusXLM"]
 
 
 class DepressionCorpus(torch.utils.data.Dataset):
-
-    def __init__(self, observation_period, dataset,
-                 subset, config, fasttext=None, transform=None):
+    def __init__(
+        self, observation_period, dataset, subset, config, fasttext=None, transform=None
+    ):
         """
         Params:
         subset: Can take three possible values: (train, test, val)
@@ -53,19 +56,23 @@ class DepressionCorpus(torch.utils.data.Dataset):
                     self.fasttext = fasttext
             elif text_embedder not in ["elmo", "bow"]:
                 raise ValueError(f"{text_embedder} is not a valid embedder")
-        
+
         if data_type not in ["img", "txt", "both", "ftrs"]:
             raise ValueError
-        
+
         if data_type in ["img"] and text_embedder in ["elmo", "fasttext", "bow"]:
             raise ValueError("Do not use text_embedder with image only dset.")
 
         if transform is None:
             transform = transforms.Compose(
-                [transforms.Resize([224, 224], interpolation=Image.LANCZOS),
-                 transforms.ToTensor(),
-                 transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                      std=[0.229, 0.224, 0.225])])
+                [
+                    transforms.Resize([224, 224], interpolation=Image.LANCZOS),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
+                ]
+            )
         self._transform = transform
         subset_to_index = {"train": 0, "val": 1, "test": 2}
         subset_idx = subset_to_index[subset]
@@ -93,7 +100,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
                 self._bow = self.preprocess_bow()
         elif data_type == "ftrs":
             self._ftrs = self.slice_ftrs(self._get_features())
-    
+
     def slice_if_rest_one(self, data):
         if self.config.general["media_type"] == "ftrs":
             return data
@@ -103,7 +110,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
         if size % bs == 1:
             return data[:-1]
         return data
-    
+
     def slice_ftrs(self, ftrs):
         size = ftrs.size(0)
         bs = self.config.general["batch_size"]
@@ -123,10 +130,10 @@ class DepressionCorpus(torch.utils.data.Dataset):
     @property
     def posts_df(self):
         return self._posts_df
-    
+
     def get_users_features_names(self):
         return self.users_df.columns.levels[1]
-    
+
     def get_posts_features_names(self):
         return self.posts_df.columns.levels[1]
 
@@ -174,8 +181,10 @@ class DepressionCorpus(torch.utils.data.Dataset):
         data = []
         for u in user_list:
             for post in u.get_posts_from_qtnre_answer_date(self._ob_period):
-                images_paths = [os.path.join(settings.PATH_TO_INSTAGRAM_DATA, p)
-                                for p in post.get_img_path_list()]
+                images_paths = [
+                    os.path.join(settings.PATH_TO_INSTAGRAM_DATA, p)
+                    for p in post.get_img_path_list()
+                ]
                 if self._data_type in ["both", "txt"]:
                     images_paths = [images_paths[0]]
                 text = post.caption
@@ -185,7 +194,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
                     img, txt = self.preprocess_data(img_path, text)
                     data.append((img, txt, label, u_name))
 
-        return data        
+        return data
 
     def preprocess_data(self, img_path, text):
         text = self._tokenizer.tokenize(text)[:100]
@@ -205,7 +214,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
     def preprocess_elmo(self):
         _, text, _, _ = zip(*self._data)
         return batch_to_ids(text)
-    
+
     def preprocess_fasttext(self):
         _, texts, _, _ = zip(*self._data)
 
@@ -213,18 +222,24 @@ class DepressionCorpus(torch.utils.data.Dataset):
         for txt in texts:
             text = np.array([self.fasttext.wv[token] for token in txt])
             embeddings.append(torch.from_numpy(text))
-    
+
         max_size = np.max([e.size(0) for e in embeddings])
-        masks = [torch.cat([torch.ones(e.size(0)), 
-                 torch.zeros(max_size-e.size(0))]) for e in embeddings]
+        masks = [
+            torch.cat([torch.ones(e.size(0)), torch.zeros(max_size - e.size(0))])
+            for e in embeddings
+        ]
         masks = torch.stack(masks, dim=0)
-                 
-        embeddings = torch.stack([
-                     torch.cat([e, torch.zeros((max_size - e.size(0), 300))], 0) 
-                                for e in embeddings], dim=0)
+
+        embeddings = torch.stack(
+            [
+                torch.cat([e, torch.zeros((max_size - e.size(0), 300))], 0)
+                for e in embeddings
+            ],
+            dim=0,
+        )
 
         return list(zip(embeddings, masks))
-    
+
     def preprocess_bow(self):
         _, texts, _, _ = zip(*self._data)
         corpus = [" ".join(tokens) for tokens in texts]
@@ -297,9 +312,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
                 questionnaire_features, columns=cols_order + keys
             )
             questionnaire_features.drop(
-                ["following_count", "followers_count"],
-                inplace=True,
-                axis=1
+                ["following_count", "followers_count"], inplace=True, axis=1
             )
             questionnaire_features = self.delete_rename_and_categorize_cols(
                 questionnaire_features
@@ -307,14 +320,13 @@ class DepressionCorpus(torch.utils.data.Dataset):
             return pd.concat(
                 [questionnaire_features, post_ftrs, vis_ftrs, txt_ftrs],
                 keys=["questionnaire_ftrs", "post_ftrs", "vis_ftrs", "txt_ftrs"],
-                axis=1
+                axis=1,
             )
 
         return get_answers_df(subset)
 
     def _load_instagram_questionnaire_answers(self):
-        answers_path = os.path.join(settings.PATH_TO_INTERIM_DATA,
-                                    "instagram.csv")
+        answers_path = os.path.join(settings.PATH_TO_INTERIM_DATA, "instagram.csv")
         return pd.read_csv(answers_path, encoding="utf-8")
 
     def delete_rename_and_categorize_cols(self, df):
@@ -325,7 +337,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
             "birth_date",
             "course_name",
             "twitter_user_name",
-            "accommodation"
+            "accommodation",
         ]
         new_df = df.drop(remove_columns, axis=1)
         convert_cols = [
@@ -336,25 +348,22 @@ class DepressionCorpus(torch.utils.data.Dataset):
             "works",
             "depression_diagnosed",
             "in_therapy",
-            "antidepressants"
+            "antidepressants",
         ]
         for col in convert_cols:
             new_df[col] = pd.factorize(new_df[col], sort=True)[0]
         new_df.rename(
-            {"instagram_user_name": "id", "binary_bdi": "label"}, 
-            axis=1,
-            inplace=True
+            {"instagram_user_name": "id", "binary_bdi": "label"}, axis=1, inplace=True
         )
         return new_df
-    
+
     def swap_features(self, bio_ftrs, data_ftrs):
         data_ftrs["following_count"] = bio_ftrs["following_count"]
         data_ftrs["followers_count"] = bio_ftrs["followers_count"]
         del bio_ftrs["following_count"]
         del bio_ftrs["followers_count"]
-    
-    def get_normalized_df(self) -> pd.DataFrame:
 
+    def get_normalized_df(self) -> pd.DataFrame:
         def remove_cols(df):
             df = df.drop([("questionnaire_ftrs", "id")], axis=1)
             df = df.drop([("questionnaire_ftrs", "label")], axis=1)
@@ -378,3 +387,121 @@ class DepressionCorpus(torch.utils.data.Dataset):
         users_df = self.get_normalized_df()
         X = torch.from_numpy(users_df.to_numpy()).float()
         return X
+
+
+class DepressionCorpusTransformer(torch.utils.data.Dataset):
+    def __init__(self, observation_period, dataset, subset, config, transform=None):
+        self.config = config
+        text_embedder = ""
+        data_type = self.config.general["media_type"]
+        media_config = getattr(self.config, data_type)
+        text_embedder = media_config["txt_embedder"].lower()
+        if text_embedder not in ["xlm"]:
+            raise ValueError(
+                f"{text_embedder} must be the 'xlm' embedder to be using DepressionCorpusXLM dataset."
+            )
+
+        if data_type not in ["txt", "both"]:
+            raise ValueError(
+                f"Data type '{data_type}' is not valid. It must be one of ['txt', 'both']"
+            )
+        if transform is None:
+            transform = transforms.Compose(
+                [
+                    transforms.Resize([224, 224], interpolation=Image.LANCZOS),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
+                ]
+            )
+        self._transform = transform
+        subset_to_index = {"train": 0, "val": 1, "test": 2}
+        subset_idx = subset_to_index[subset]
+        self.text_embedder = text_embedder
+        self._data_type = data_type
+        self._subset = subset
+        self._dataset = dataset
+        self._ob_period = int(observation_period)
+        self._tokenizer = self._initialize_tokenizer()
+        # A list of datasets which in turn are a list
+        self._raw = StratifyFacade().load_stratified_data()
+        self._raw = self._raw["data_" + str(self._ob_period)][self._dataset]
+        self._raw = self._raw[subset_idx]
+        self._data = self._get_posts_list_from_users(self._raw)
+
+    def _initialize_tokenizer(self) -> BertTokenizer:
+        class_model = self.config.general["class_model"].lower()
+        bert_size = self.config.general["bert_size"].lower()
+        if "bert" not in class_model:
+            raise ValueError(
+                f"The parameter 'class_model' should be one of the BERT models, not {class_model}."
+            )
+        if bert_size not in ["large", "base"]:
+            raise ValueError(
+                f"The parameter 'bert_size' should be 'large' or 'base', not {bert_size}"
+            )
+
+        return BertTokenizer.from_pretrained(settings.PATH_TO_BERT[bert_size])
+
+    def _get_posts_list_from_users(self, user_list):
+        """ Return a list of posts from a user_list
+        
+        This function consider an instagram post with multiples images as 
+        multiples posts with the same caption for all images in the same post.
+        """
+        data = []
+        for u in user_list:
+            for post in u.get_posts_from_qtnre_answer_date(self._ob_period):
+                images_paths = [
+                    os.path.join(settings.PATH_TO_INSTAGRAM_DATA, p)
+                    for p in post.get_img_path_list()
+                ]
+                if self._data_type in ["both", "txt"]:
+                    images_paths = [images_paths[0]]
+                text = post.caption
+                label = u.questionnaire.get_binary_bdi()
+                u_name = u.username
+                for img_path in images_paths:
+                    img, txt = self.preprocess_data(img_path, text)
+                    data.append((img, txt, label, u_name))
+
+        return data
+
+    def preprocess_data(self, img_path, text):
+        # Token indices sequence length is longer than the specified maximum sequence
+        # length for this model (530 > 512). Running this sequence through the model
+        # will result in indexing errors
+        # text = self._tokenizer.encode(text, max_length=511, return_tensors="pt")
+        # text = self._tokenizer.tokenize(ftfy.fix_text(text))
+        text = self._tokenizer.encode_plus(
+            ftfy.fix_text(text),
+            add_special_tokens=True,
+            max_length=300,
+            pad_to_max_length=True,
+        )
+        if self._data_type in ["img", "both"]:
+            image = Image.open(img_path)
+            img = image.copy()
+            image.close()
+            if self._transform is not None:
+                img = self._transform(img)
+        else:
+            img = img_path
+
+        return img, text
+
+    def __len__(self):
+        return len(self._data)
+
+    def __getitem__(self, i):
+        img, caption, label, u_name = self._data[i]
+
+        if self._data_type == "txt":
+            data = (caption,)
+        elif self._data_type == "both":
+            data = (img,) + caption
+
+        if self._subset in ["train", "val"]:
+            return data + (label,)
+        return data + (label, u_name)

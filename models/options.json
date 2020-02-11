@@ -4,8 +4,9 @@
         "batch_size": 32,
         "shuffle":true,
         "epochs":30,
-        "media_type": "ftrs",
-        "class_model": "MultimodalClassifier"
+        "media_type": "txt",
+        "class_model": "BERTClassifier",
+        "bert_size": "large"
     },
     "img":{
         "img_embedder": "resnext",
@@ -26,7 +27,7 @@
     "txt":{
         "mean": "pmean",
         "pmean": ["mean", "max", "min"],
-        "txt_embedder": "elmo",
+        "txt_embedder": "xlm",
         "LSTM": {
             "num_layers": 1,
             "bidirectional": false,

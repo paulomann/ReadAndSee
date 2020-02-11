@@ -83,7 +83,7 @@ class ELMo(nn.Module):
             weights_path,
             num_output_representations=1,
             dropout=0.5,
-            scalar_mix_parameters=[-9e10, -9e10, 1]
+            scalar_mix_parameters=[-9e10, 1, -9e10]
         )
         # scalar_mix_parameters=[-9e10, -9e10, 1]
         self.out_ftrs = self.embedding.get_output_dim()

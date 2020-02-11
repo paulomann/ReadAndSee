@@ -358,13 +358,30 @@ def plot_roc_precision_curves_for_users(logits_aggregator, experiments_folder=""
         name = data["name"] + "-" + data["days"]
         datasets = list(range(0,10))
         _plot_roc_and_pr_curves(Y_true, probas, datasets, name)
+    
+# def plot_roc_precision_curves_for_users(
+#     logits_aggregator, experiments_folder="", save_name=""
+# ):
+#     exp_reader = ExperimentReader(logits_aggregator, experiments_folder, metrics=False)
+#     trues = []
+#     probas = []
+#     names = []
+#     for data in exp_reader:
+#         Y_true = data["Y_true_user"][1]
+#         prob = data["aggregated_logits"][1]
+#         name = data["name"]# + "-" + data["days"]
+#         trues.append(Y_true)
+#         probas.append(prob)
+#         names.append(name)
+#         # datasets = list(range(0,10))
+#     _plot_roc_and_pr_curves(trues, probas, names, "", save_name)
 
 def _plot_roc_and_pr_curves(
     y_tests,
     probas,
     labels,
     title,
-    save_name = "GGGG",
+    save_name = "",
     colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'C0', 'C1', 'C2']
 ):
     fig = plt.figure(figsize=(13,6))
@@ -411,7 +428,8 @@ def plot_precision_recall_scatter_plot(
 
 def scatter_plot(df, title, save_name=None):
     sns.set_style("whitegrid", {'grid.linestyle': '--'})
-    fig2, ax2 = plt.subplots(1,1, figsize=(7,5))
+    fig2, ax2 = plt.subplots(1,1, figsize=(8,6))
+    df = df.sort_values(by=['days', 'name'], ascending=False)
     filled_markers = (
         'o', 'v', '^', '<', '>', '*', 's', 'p', '8', 'h', 'H', 'D', 'd', 'P', 'X'
     )
@@ -433,14 +451,16 @@ def scatter_plot(df, title, save_name=None):
     ax2.legend(
         handles,
         labels,
-        # loc="lower center",
-        # bbox_to_anchor=(0.5, -0.35),
-        loc='center left', 
-        bbox_to_anchor=(1, 0.5),
-        ncol=1
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.40),
+        # loc='center left', 
+        # bbox_to_anchor=(1, 0.5),
+        ncol=4
     )
+    from matplotlib.ticker import FormatStrFormatter
+    ax2.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
     # ax2.set_xticks(np.linspace(0.0, 1.0, num=10))
-    # ax2.set_yticks(np.linspace(0.0, 1.0, num=10))
+    ax2.set_yticks(np.linspace(0.50, 1.0, num=9))
     # ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     ax2.set_xlabel("Precision (mean)")
     ax2.set_ylabel("Recall (mean)")

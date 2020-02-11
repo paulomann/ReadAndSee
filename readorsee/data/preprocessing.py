@@ -615,3 +615,11 @@ class NLTKTokenizer():
     def tokenize(self, text, remove_hashtags=True):
         tokens = self.nltk.tokenize(text)
         return tokens
+
+class MyBERTTokenizer():
+
+    def __init__(self):
+        pass
+
+    def tokenize(self, text, remove_hashtags=True):
+        pass

@@ -178,3 +178,6 @@ def train_model(model, days, dataset, fasttext, config, verbose):
 
     trained_model = trainer.train_model(verbose)
     return trained_model
+
+
+# def fine_tune_XLM(model, days, dataset, config, verbose):
