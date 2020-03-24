@@ -1,6 +1,6 @@
 from readorsee import settings
 from readorsee.data.models import InstagramUser, InstagramPost
-from readorsee.data.preprocessing import Tokenizer
+from readorsee.data.preprocessing import NLTKTokenizer, Tokenizer
 import h5py
 import os
 import numpy as np
@@ -13,7 +13,7 @@ from pathlib import Path
 
 if Path(settings.PATH_TO_PT_LIWC).exists():
     parse, category_names = liwc.load_token_parser(settings.PATH_TO_PT_LIWC)
-tokenizer = Tokenizer()
+tokenizer = NLTKTokenizer()
 
 __all__ = ["get_features"]
 
