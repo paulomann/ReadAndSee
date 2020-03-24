@@ -9,9 +9,10 @@ import liwc
 from skimage import io, color
 from typing import *
 from collections import Counter
+from pathlib import Path
 
-Path = str
-parse, category_names = liwc.load_token_parser(settings.PATH_TO_PT_LIWC)
+if Path(settings.PATH_TO_PT_LIWC).exists():
+    parse, category_names = liwc.load_token_parser(settings.PATH_TO_PT_LIWC)
 tokenizer = Tokenizer()
 
 __all__ = ["get_features"]
