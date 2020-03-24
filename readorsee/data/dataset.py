@@ -505,3 +505,90 @@ class DepressionCorpusTransformer(torch.utils.data.Dataset):
         if self._subset in ["train", "val"]:
             return data + (label,)
         return data + (label, u_name)
+
+
+class IterableDataset(torch.utils.data.Dataset):
+    def __init__(self, observation_period, data_type, dataset, subset, transform=None):
+        if data_type not in ["txt", "both"]:
+            raise ValueError(
+                f"Data type '{data_type}' is not valid. It must be one of ['txt', 'both']"
+            )
+        if transform is None:
+            transform = transforms.Compose(
+                [
+                    transforms.Resize([224, 224], interpolation=Image.LANCZOS),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
+                ]
+            )
+        self._transform = transform
+        subset_to_index = {"train": 0, "val": 1, "test": 2}
+        subset_idx = subset_to_index[subset]
+        self._data_type = data_type
+        self._subset = subset
+        self._dataset = dataset
+        self._ob_period = int(observation_period)
+        self._tokenizer = NLTKTokenizer()
+        # A list of datasets which in turn are a list
+        self._raw = StratifyFacade().load_stratified_data()
+        self._raw = self._raw["data_" + str(self._ob_period)][self._dataset]
+        self._raw = self._raw[subset_idx]
+        self._data = self._get_posts_list_from_users(self._raw)
+
+    def _get_posts_list_from_users(self, user_list):
+        """ Return a list of posts from a user_list
+        
+        This function consider an instagram post with multiples images as 
+        multiples posts with the same caption for all images in the same post.
+        """
+        data = []
+        for u in user_list:
+            for post in u.get_posts_from_qtnre_answer_date(self._ob_period):
+                images_paths = [
+                    os.path.join(settings.PATH_TO_INSTAGRAM_DATA, p)
+                    for p in post.get_img_path_list()
+                ]
+                if self._data_type in ["both", "txt"]:
+                    images_paths = [images_paths[0]]
+                text = post.caption
+                label = u.questionnaire.get_binary_bdi()
+                u_name = u.username
+                for img_path in images_paths:
+                    img, txt = self.preprocess_data(img_path, text)
+                    data.append((img, txt, label, u_name))
+
+        return data
+
+    def preprocess_data(self, img_path, text):
+        # Token indices sequence length is longer than the specified maximum sequence
+        # length for this model (530 > 512). Running this sequence through the model
+        # will result in indexing errors
+        # text = self._tokenizer.encode(text, max_length=511, return_tensors="pt")
+        text = self._tokenizer.tokenize(ftfy.fix_text(text))[:511]
+        if self._data_type in ["img", "both"]:
+            image = Image.open(img_path)
+            img = image.copy()
+            image.close()
+            if self._transform is not None:
+                img = self._transform(img)
+        else:
+            img = img_path
+
+        return img, text
+
+    def __len__(self):
+        return len(self._data)
+
+    def __getitem__(self, i):
+        img, caption, label, u_name = self._data[i]
+
+        if self._data_type == "txt":
+            data = (caption,)
+        elif self._data_type == "both":
+            data = (img,) + (caption)
+
+        if self._subset in ["train", "val"]:
+            return data + (label,)
+        return data + (label, u_name)

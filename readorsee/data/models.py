@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-import face_recognition
+# import face_recognition
 from readorsee import settings
 import os
 import json
