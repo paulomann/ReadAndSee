@@ -509,7 +509,7 @@ class DepressionCorpusTransformer(torch.utils.data.Dataset):
 
 class IterableDataset(torch.utils.data.Dataset):
     def __init__(self, observation_period, data_type, dataset, subset, transform=None):
-        if data_type not in ["txt", "both"]:
+        if data_type not in ["img", "txt", "both"]:
             raise ValueError(
                 f"Data type '{data_type}' is not valid. It must be one of ['txt', 'both']"
             )
@@ -586,6 +586,8 @@ class IterableDataset(torch.utils.data.Dataset):
 
         if self._data_type == "txt":
             data = (caption,)
+        elif self._data_type == "img":
+            data = (img,)
         elif self._data_type == "both":
             data = (img,) + (caption)
 
