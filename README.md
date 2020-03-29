@@ -1,4 +1,4 @@
-# ReadOrSee
+# ReadAndSee
 
 This project contains code for detection of high depressive symptoms of academic students from Universidade Federal Fluminense (UFF), in Brazil. The study aims to detect depression using social media (Instagram) posts from students using a multimodal approach. In other words, we use both images and captions of Instagram posts to create Machine Learning models capable of detecting students with high depressive symptoms.
 
