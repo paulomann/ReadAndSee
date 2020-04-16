@@ -479,6 +479,8 @@ class DepressionCorpusTransformer(torch.utils.data.Dataset):
             add_special_tokens=True,
             max_length=300,
             pad_to_max_length=True,
+            return_tensors = "pt",
+            return_attention_mask = True
         )
         if self._data_type in ["img", "both"]:
             image = Image.open(img_path)

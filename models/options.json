@@ -6,7 +6,7 @@
         "epochs":30,
         "media_type": "txt",
         "class_model": "BERTClassifier",
-        "bert_size": "large"
+        "bert_size": "base"
     },
     "img":{
         "img_embedder": "resnext",
