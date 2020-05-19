@@ -35,7 +35,6 @@ def plot_evp(example_valid_perf=None, experiment_name="Experiment Name"):
         ]
 
     data = expected_max_performance.samplemax(example_valid_perf)
-
     # In most cases only one plot will be necessary.
     # These examples are meant to show what the plots look like with and without log-scaling the X-axis and
     # shading +/- the standard error (similar to standard deviation).

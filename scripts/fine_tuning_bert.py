@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch
 from torch.optim import Adam
 from torch.utils.data import DataLoader, SequentialSampler, RandomSampler
-from transformers import BertForSequenceClassification, AdamW, BertConfig
+from transformers import BertForSequenceClassification, BertForSequenceClassificationPooling, AdamW, BertConfig
 from transformers import get_linear_schedule_with_warmup
 from readorsee import settings
 import numpy as np
@@ -27,6 +27,8 @@ parser.add_argument("--save", type=int, default=True)
 parser.add_argument("--wi", type=int, default=None)
 parser.add_argument("--do", type=int, default=None)
 parser.add_argument("--save-name", type=str, default=None)
+parser.add_argument("--bert-pooling", type=int, default=0)
+parser.add_argument("--pooling-method", type=str, default="concat") #can be "mean" or "concat"
 
 args = parser.parse_args()
 
@@ -41,6 +43,8 @@ save = args.save
 wi = args.wi
 do = args.do
 save_name = args.save_name
+bert_pooling = args.bert_pooling
+pooling_method = args.pooling_method
 
 
 save_data = []
@@ -61,13 +65,13 @@ device = torch.device(f"cuda:{gpu}")
 
 config = Config()
 
-print(f"Parameters: Dataset={dataset}; GPU={gpu}; Period={period}; Save={save}; WI={wi}; DO={do}; Save Name={save_name}.")
+print(f"Parameters: Dataset={dataset}; GPU={gpu}; Period={period}; Save={save}; WI={wi}; DO={do}; Save Name={save_name}; Bert Pooling={bert_pooling}; Pooling Method={pooling_method}.")
 
 if wi is not None and do is not None:
     combinations = [(do, wi)]
 else:
     # combinations = itertools.product(list(range(10)), list(range(10)))
-    combinations = list(itertools.product([0], list(range(10, 100))))
+    combinations = list(itertools.product([0], list(range(0, 100))))
 
 # for comb in :
 for comb in combinations:
@@ -117,12 +121,26 @@ for comb in combinations:
 
     bert_size = config.general["bert_size"].lower()
     bert_path = settings.PATH_TO_BERT[bert_size]
-    model = BertForSequenceClassification.from_pretrained(
-        bert_path,
-        num_labels = 2,
-        output_attentions = False,
-        output_hidden_states = False
-    )
+    if bert_pooling:
+        print(f"Using BertForSequenceClassificationPooling with {pooling_method} method")
+        model = BertForSequenceClassificationPooling.from_pretrained(
+            bert_path,
+            num_labels = 2,
+            output_attentions = False,
+            output_hidden_states = True,
+            pooling_mode=pooling_method,
+            last_pooling_layers = 4
+        )
+        # Here we use last_pooling_layers = 4, i.e., we get the
+        # last 4 layers and concat their CLS token representation
+    else:
+        print(f"Using BertForSequenceClassification")
+        model = BertForSequenceClassification.from_pretrained(
+            bert_path,
+            num_labels = 2,
+            output_attentions = False,
+            output_hidden_states = False
+        )
     model = model.to(device)
 
     set_seed(seed_wi)
@@ -201,7 +219,7 @@ for comb in combinations:
             # the loss (because we provided labels) and the "logits"--the model
             # outputs prior to activation.
 
-            loss, logits = model(b_input_ids, 
+            loss, logits, *_ = model(b_input_ids, 
                                 token_type_ids=None, 
                                 attention_mask=b_input_mask, 
                                 labels=b_labels)
@@ -289,7 +307,7 @@ for comb in combinations:
                 # https://huggingface.co/transformers/v2.2.0/model_doc/bert.html#transformers.BertForSequenceClassification
                 # Get the "logits" output by the model. The "logits" are the output
                 # values prior to applying an activation function like the softmax.
-                (loss, logits) = model(b_input_ids, 
+                loss, logits, *_ = model(b_input_ids, 
                                     token_type_ids=None, 
                                     attention_mask=b_input_mask,
                                     labels=b_labels)
