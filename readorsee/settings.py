@@ -41,3 +41,4 @@ PATH_TO_SERIALIZED_TFIDF = join(ROOT, "models", "bow", "bow.model")
 PATH_TO_BASE_BERT = join(ROOT, "models", "bert", "base")
 PATH_TO_LARGE_BERT = join(ROOT, "models", "bert", "large")
 PATH_TO_BERT = {"large": PATH_TO_LARGE_BERT, "base": PATH_TO_BASE_BERT}
+PATH_TO_BERT_FINE_TUNING_DATA = join(ROOT, "models", "bert_fine_tuning_data")
