@@ -38,6 +38,7 @@ PATH_TO_FASTTEXT_PT_EMBEDDINGS = join(ROOT, "models/fasttext/cc.pt.300.bin.gz")
 PATH_TO_SERIALIZED_TFIDF = join(ROOT, "models", "bow", "bow.model")
 
 # BERT variables
+PATH_TO_BERT_MODELS_FOLDER = join(ROOT, "models", "bert")
 PATH_TO_BASE_BERT = join(ROOT, "models", "bert", "base")
 PATH_TO_LARGE_BERT = join(ROOT, "models", "bert", "large")
 PATH_TO_BERT = {"large": PATH_TO_LARGE_BERT, "base": PATH_TO_BASE_BERT}

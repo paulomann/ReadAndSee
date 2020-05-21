@@ -18,17 +18,21 @@ import pickle as pk
 import itertools
 from readorsee import settings
 import os
+from pathlib import Path
+import copy
 
 parser = argparse.ArgumentParser(description="Arguments for fine-tuning.")
 parser.add_argument("--gpu", type=int)
 parser.add_argument("--period", type=int)
 parser.add_argument("--dataset", type=int)
-parser.add_argument("--save", type=int, default=True)
+parser.add_argument("--save-stats", type=int, default=0)
 parser.add_argument("--wi", type=int, default=None)
 parser.add_argument("--do", type=int, default=None)
 parser.add_argument("--save-name", type=str, default=None)
 parser.add_argument("--bert-pooling", type=int, default=0)
 parser.add_argument("--pooling-method", type=str, default="concat") #can be "mean" or "concat"
+parser.add_argument("--save-model", type=int, default=0)
+parser.add_argument("--bert-size", type=str, default="base") # "base" or "large"
 
 args = parser.parse_args()
 
@@ -39,12 +43,14 @@ args = parser.parse_args()
 gpu = args.gpu
 period = args.period
 dataset = args.dataset
-save = args.save
+save_stats = args.save_stats
 wi = args.wi
 do = args.do
 save_name = args.save_name
 bert_pooling = args.bert_pooling
 pooling_method = args.pooling_method
+save_model = args.save_model
+bert_size = args.bert_size
 
 
 save_data = []
@@ -65,7 +71,7 @@ device = torch.device(f"cuda:{gpu}")
 
 config = Config()
 
-print(f"Parameters: Dataset={dataset}; GPU={gpu}; Period={period}; Save={save}; WI={wi}; DO={do}; Save Name={save_name}; Bert Pooling={bert_pooling}; Pooling Method={pooling_method}.")
+print(f"Parameters: Dataset={dataset}; GPU={gpu}; Period={period}; Save Stats={save_stats}; WI={wi}; DO={do}; Save Name={save_name}; Bert Pooling={bert_pooling}; Pooling Method={pooling_method}; Save Model={save_model}; Bert Size={bert_size}.")
 
 if wi is not None and do is not None:
     combinations = [(do, wi)]
@@ -73,6 +79,8 @@ else:
     # combinations = itertools.product(list(range(10)), list(range(10)))
     combinations = list(itertools.product([0], list(range(0, 100))))
 
+best_val_acc = float("-inf")
+best_model_wts = None
 # for comb in :
 for comb in combinations:
     print(f"Running experiment for combination {comb}")
@@ -119,7 +127,7 @@ for comb in combinations:
                 num_workers=0
     )
 
-    bert_size = config.general["bert_size"].lower()
+    # bert_size = config.general["bert_size"].lower()
     bert_path = settings.PATH_TO_BERT[bert_size]
     if bert_pooling:
         print(f"Using BertForSequenceClassificationPooling with {pooling_method} method")
@@ -171,6 +179,7 @@ for comb in combinations:
 
     training_stats = []
     total_t0 = time.time()
+    mean_val_acc_over_epochs = 0
     for epoch_i in range(0, epochs):
         print("")
         print('======== Epoch {:} / {:} ========'.format(epoch_i + 1, epochs))
@@ -348,7 +357,9 @@ for comb in combinations:
                 'Validation Time': validation_time
             }
         )
+        mean_val_acc_over_epochs += avg_val_accuracy
 
+    mean_val_acc_over_epochs /= epochs
     print("")
     print("Training complete!")
 
@@ -356,7 +367,13 @@ for comb in combinations:
 
     print(f"Training stats: {training_stats}")
 
+    print(f"Mean Valid. Acc. over epochs: {mean_val_acc_over_epochs}")
+
     save_data.append({"seed_do":seed_do, "seed_wi":seed_wi, "training_stats":training_stats})
+
+    if mean_val_acc_over_epochs > best_val_acc:
+        best_val_acc = mean_val_acc_over_epochs
+        best_model_wts = copy.deepcopy(model.state_dict())
 
     del train_dataloader
     del validation_dataloader
@@ -367,7 +384,36 @@ for comb in combinations:
     del model
     torch.cuda.empty_cache()
 
-if save:
+
+if save_model:
+
+    if bert_pooling:
+        print(f"Recreating BertForSequenceClassificationPooling with {pooling_method} method for saving...")
+        model = BertForSequenceClassificationPooling.from_pretrained(
+            bert_path,
+            num_labels = 2,
+            output_attentions = False,
+            output_hidden_states = True,
+            pooling_mode=pooling_method,
+            last_pooling_layers = 4,
+            state_dict=best_model_wts
+        )
+        # Here we use last_pooling_layers = 4, i.e., we get the
+        # last 4 layers and concat their CLS token representation
+    else:
+        print(f"Recreating BertForSequenceClassification for saving...")
+        model = BertForSequenceClassification.from_pretrained(
+            bert_path,
+            num_labels = 2,
+            output_attentions = False,
+            output_hidden_states = False,
+            state_dict=best_model_wts
+        )
+    model_path = Path(settings.PATH_TO_BERT_MODELS_FOLDER, save_name)
+    model_path.mkdir(parents=True, exist_ok=True)
+    model.save_pretrained(model_path)
+
+if save_stats:
     if save_name:
         save_path = os.path.join(settings.PATH_TO_BERT_FINE_TUNING_DATA, f"{save_name}.pk")
     else:
