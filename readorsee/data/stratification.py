@@ -189,3 +189,89 @@ class LocalSearch:
         for p in posts:
             total += len(p.get_img_path_list())
         return total
+
+class SimpleTwitterStratifie:
+
+    """ 
+        SimpleTwitterStratifie code to stratify the twitter data
+        by number of posts and depression diagnosed frequency 
+    """
+
+    def __init__(self, n_sets, days):
+        
+        if n_sets != 1:
+            raise ValueError
+
+        self.n_sets = n_sets
+        self.days = days
+
+    def stratify(self, participants):
+
+        print("Twitter Stratifying...")
+
+        data_separeted_by_days = {}
+        data_separeted_by_days['data_' + str(self.days[0])] = []
+        data_separeted_by_days['data_' + str(self.days[1])] = []
+        data_separeted_by_days['data_' + str(self.days[2])] = []
+
+        final_data = {}
+        final_data['data_' + str(self.days[0])] = []
+        final_data['data_' + str(self.days[1])] = []
+        final_data['data_' + str(self.days[2])] = []
+
+        participants.sort(key=lambda x: len(x.posts))
+        participants.sort(key=lambda x: x.depression_diagnosed)
+
+        idx = 0
+
+        for user in participants:
+            
+            if idx == 0:
+                data_separeted_by_days['data_' + str(self.days[0])].append(user)
+            elif idx == 1:
+                data_separeted_by_days['data_' + str(self.days[1])].append(user)
+            else:
+                data_separeted_by_days['data_' + str(self.days[2])].append(user)
+                
+            idx += 1
+            
+            if (idx == 3):
+                idx = 0
+                
+        participants_sub1 = []
+        participants_sub2 = []
+        participants_sub3 = []
+
+        for sub_data_index in data_separeted_by_days:
+            
+            sud_data = data_separeted_by_days[sub_data_index]
+            
+            sud_data.sort(key=lambda x: len(x.posts))
+            sud_data.sort(key=lambda x: x.depression_diagnosed)
+
+            idx = 0
+
+            for user in sud_data:
+
+                if idx == 0:
+                    participants_sub1.append(user)
+                elif idx == 1:
+                    participants_sub2.append(user)
+                else:
+                    participants_sub3.append(user)
+
+                idx += 1
+
+                if (idx == 3):
+                    idx = 0
+                
+            participants_sub1_array = np.array(participants_sub1)
+            participants_sub2_array = np.array(participants_sub2)
+            participants_sub3_array = np.array(participants_sub3)
+            
+            participants_tuple = (participants_sub1_array, participants_sub2_array, participants_sub3_array)
+            
+            final_data[sub_data_index] = []
+            final_data[sub_data_index].append(participants_tuple) 
+
+        return final_data
