@@ -215,6 +215,86 @@ class InstagramPost:
         )
         return data_dict
 
+class TwitterUser(Participant):
+
+    """
+    Twitter's profile information data model
+    """
+
+    def __init__(
+        self,
+        depression_diagnosed,
+        twitter_followers,
+        twitter_following,
+        twitter_tweets_count,
+
+        twitter_listed_count,
+        twitter_account_date_creation,
+        twitter_tweets_liked_count,
+
+        questionnaire,
+        username,
+        twitter_posts,
+    ):
+        super().__init__(questionnaire, username, twitter_posts)
+        self.depression_diagnosed = depression_diagnosed
+        self.twitter_followers = twitter_followers
+        self.twitter_following = twitter_following
+        self.twitter_tweets_count = twitter_tweets_count
+        self.twitter_listed_count = twitter_listed_count
+        self.twitter_account_date_creation = twitter_account_date_creation
+        self.twitter_tweets_liked_count = twitter_tweets_liked_count
+
+class TwitterPost:
+
+    """
+    This class models the twitter Post object that may grow in the future
+    """
+
+    def __init__(
+        self, 
+        tweet_text, 
+        tweet_date, 
+        tweet_retweet_count,
+        tweet_favorite_count, 
+        tweet_hashtags_count, 
+        tweet_symbols_count,
+        tweet_user_mentions_count, 
+        tweet_urls_count
+    ):
+
+        self.tweet_text = tweet_text
+        self.tweet_date = tweet_date
+        self.tweet_retweet_count = tweet_retweet_count
+        self.tweet_favorite_count = tweet_favorite_count
+        self.tweet_hashtags_count = tweet_hashtags_count
+        self.tweet_symbols_count = tweet_symbols_count
+        self.tweet_user_mentions_count = tweet_user_mentions_count
+        self.tweet_urls_count = tweet_urls_count
+
+    def get_tweet_text(self):
+        return self.tweet_text
+        
+    def get_tweet_date(self):
+        return self.tweet_date
+
+    def get_tweet_retweet_count(self):
+        return self.tweet_retweet_count
+
+    def get_tweet_favorite_count(self):
+        return self.tweet_favorite_count
+
+    def get_tweet_hashtags_count(self):
+        return self.tweet_hashtags_count
+
+    def get_tweet_symbols_count(self):
+        return self.tweet_symbols_count
+
+    def get_tweet_user_mentions_count(self):
+        return self.tweet_user_mentions_count
+
+    def get_tweet_urls_count(self):
+        return self.tweet_urls_count
 
 class Config(object):
     def __init__(self, options_path=None):
