@@ -17,7 +17,7 @@ class PreProcessFacade():
         elif process_method == "instagram_external":
             self._pipeline = [preprocessing.InstagramExternalPreProcess()]
         elif process_method == "twitter_external":
-            self._pipeline = [preprocessing.TweetsExternalPreProcess()]
+            self._pipeline = [preprocessing.TweetsExternalPreProcessV2()]
         else:
             raise ValueError
         self._save = save
@@ -89,6 +89,47 @@ class StratifyFacade():
             data = pickle.load(f)
         return data
 
+class StratifyTwitterFacade():
+
+    def __init__(self, algorithm="dumb_twitter_stratifie"):
+        self._data = None
+        self._algorithm = algorithm
+
+    def stratify(self, n_sets=1, days=[60, 212, 365], save=True):
+        """ Stratify data according to params """
+
+        pprocess_facade = PreProcessFacade("twitter_external", save)
+        
+        data = pprocess_facade.process_pipeline()
+        participants = data["participants"]
+
+        if self._algorithm == "dumb_twitter_stratifie":
+            stratification_algorithm = stratification.SimpleTwitterStratifie(n_sets, days)
+
+        self._data = stratification_algorithm.stratify(participants)
+
+        return self._data
+
+    def save(self):
+        stratified_path = os.path.join(settings.PATH_TO_PROCESSED_DATA,
+                                       "twitter_stratified_data.pickle")
+        if self._data.keys():
+            with open(stratified_path, "wb") as f:
+                pickle.dump(self._data, f)
+        else:
+            raise ValueError
+
+        self._data
+
+    @staticmethod
+    def load_stratified_data():
+        stratified_path = os.path.join(settings.PATH_TO_PROCESSED_DATA,
+                                       "twitter_stratified_data.pickle")
+
+        data = None
+        with open(stratified_path, "rb") as f:
+            data = pickle.load(f)
+        return data
 
 class InstagramScraperFacade:
 
