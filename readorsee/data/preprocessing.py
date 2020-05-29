@@ -4,6 +4,7 @@ import numpy as np
 import re
 import json
 from readorsee.data.models import InstagramPost, InstagramUser, Questionnaire
+from readorsee.data.models import TwitterPost, TwitterUser
 from readorsee import settings
 import spacy
 from nltk.tokenize import TweetTokenizer
@@ -482,6 +483,103 @@ class InstagramExternalPreProcess(PreProcess):
 
         return data
 
+class TweetsExternalPreProcessV2(PreProcess):
+
+    """
+    Helper class for preprocessing the external data from twitter.
+
+    Data generated:
+    _out_twitter_df -- The final twitter dataset containing all users that 
+        can be fed to the machine learning models, it is as csv file, and 
+        contains _valid_twitter_participants data.
+
+    _valid_twitter_participants -- A list of TwitterUser models that contains only
+        valid users (open profiles, and contain at least 1 post)
+    """
+
+    def __init__(self):
+        super().__init__()
+        self._external_twitter_df = self._load_data()
+        self._out_twitter_df = None
+        self._valid_twitter_participants = None
+        #self._blocked_profiles = None
+
+    def _load_data(self):
+        """ Return the external twitter dataframequestionnaire DataFrame. """
+        df = pd.read_csv(settings.PATH_TO_EXTERNAL_TWITTER_DATASET, encoding="utf-8", sep="\t")
+        return df
+
+    def preprocess(self):
+        print("Preprocessing external twitter data...")
+
+        self._valid_participants = []
+
+        for username in self._get_unique_usernames():
+
+            twitter_user = self._get_twitter_models(username)
+
+            self._valid_participants.append(twitter_user)
+            self._out_twitter_df = self._external_twitter_df
+
+        data = dict(participants=self._valid_participants,
+                    twitter_df=self._out_twitter_df)
+
+        return data
+
+    def save_processed(self):
+        data = dict(participants=self._valid_participants,
+                    twitter_df=self._out_twitter_df)
+
+        return data
+
+    def _get_unique_usernames(self):
+        return self._external_twitter_df.twitter_user_name.unique().tolist()
+
+    def _get_twitter_models(self, username):
+        _external_twitter_df_from_user = self._external_twitter_df[self._external_twitter_df.twitter_user_name == username] 
+        
+        twitter_post_list = []
+
+        for index, row in _external_twitter_df_from_user.iterrows():
+            twitter_post_instance = self._get_twitter_post_models(row["tweet_text"], 
+                                                                    row["tweet_date"],
+                                                                    row["tweet_retweet_count"],
+                                                                    row["tweet_favorite_count"],
+                                                                    row["tweet_hashtags_count"],
+                                                                    row["tweet_symbols_count"],
+                                                                    row["tweet_user_mentions_count"],
+                                                                    row["tweet_urls_count"])
+            twitter_post_list.append(twitter_post_instance)
+
+        user_depression_diagnosed =  _external_twitter_df_from_user.iloc[0]["depression_diagnosed"]
+        user_twitter_followers = _external_twitter_df_from_user.iloc[0]["followers_count"]
+        user_twitter_following = _external_twitter_df_from_user.iloc[0]["following_count"]
+        user_twitter_tweets_count = _external_twitter_df_from_user.iloc[0]["tweets_count"]
+        user_twitter_listed_count = _external_twitter_df_from_user.iloc[0]["listed_count"]
+        twitter_account_date_creation = _external_twitter_df_from_user.iloc[0]["twitter_account_date_creation"]
+        user_twitter_tweets_liked_count = _external_twitter_df_from_user.iloc[0]["tweets_liked_count"]
+        user_questionnaire = None
+
+        twitter_user_instance = TwitterUser(user_depression_diagnosed,
+                                            user_twitter_followers,
+                                            user_twitter_following,
+                                            user_twitter_tweets_count,
+                                            user_questionnaire,
+                                            user_twitter_listed_count,
+                                            twitter_account_date_creation,
+                                            user_twitter_tweets_liked_count,
+                                            username,
+                                            twitter_post_list)
+
+        return twitter_user_instance
+        
+    def _get_twitter_post_models(self, tweet_text, tweet_date, tweet_retweet_count,
+                                tweet_favorite_count, tweet_hashtags_count, tweet_symbols_count,
+                                tweet_user_mentions_count, tweet_urls_count):
+
+        return TwitterPost(tweet_text, tweet_date, tweet_retweet_count,
+                                tweet_favorite_count, tweet_hashtags_count, tweet_symbols_count,
+                                tweet_user_mentions_count, tweet_urls_count)
 
 class TweetsExternalPreProcess(PreProcess):
 
