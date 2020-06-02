@@ -509,14 +509,29 @@ class TweetsExternalPreProcessV2(PreProcess):
         df = pd.read_csv(settings.PATH_TO_EXTERNAL_TWITTER_DATASET, encoding="utf-8", sep="\t")
         return df
 
+    def _load_twitter_questionnaire_answers(self):
+        answers_path = os.path.join(settings.PATH_TO_INTERIM_DATA,
+                                    "twitter.csv")
+        return pd.read_csv(answers_path, encoding="utf-8")
+
+    def _get_qtnre_model(self, username, answer_df):
+        mask = answer_df["twitter_user_name"] == username
+        answer_dict = answer_df[mask].to_dict("records")[0]
+        qtnre = Questionnaire(answer_dict)
+        return qtnre
+
     def preprocess(self):
         print("Preprocessing external twitter data...")
 
         self._valid_participants = []
 
+        answers_df = self._load_twitter_questionnaire_answers()
+
         for username in self._get_unique_usernames():
 
-            twitter_user = self._get_twitter_models(username)
+            qtnre_answer = self._get_qtnre_model(username, answers_df)
+
+            twitter_user = self._get_twitter_models(username, qtnre_answer)
 
             self._valid_participants.append(twitter_user)
             self._out_twitter_df = self._external_twitter_df
@@ -535,7 +550,7 @@ class TweetsExternalPreProcessV2(PreProcess):
     def _get_unique_usernames(self):
         return self._external_twitter_df.twitter_user_name.unique().tolist()
 
-    def _get_twitter_models(self, username):
+    def _get_twitter_models(self, username, qtnre_answer):
         _external_twitter_df_from_user = self._external_twitter_df[self._external_twitter_df.twitter_user_name == username] 
         
         twitter_post_list = []
@@ -558,16 +573,18 @@ class TweetsExternalPreProcessV2(PreProcess):
         user_twitter_listed_count = _external_twitter_df_from_user.iloc[0]["listed_count"]
         twitter_account_date_creation = _external_twitter_df_from_user.iloc[0]["twitter_account_date_creation"]
         user_twitter_tweets_liked_count = _external_twitter_df_from_user.iloc[0]["tweets_liked_count"]
-        user_questionnaire = None
+        user_questionnaire = qtnre_answer
 
         twitter_user_instance = TwitterUser(user_depression_diagnosed,
                                             user_twitter_followers,
                                             user_twitter_following,
                                             user_twitter_tweets_count,
-                                            user_questionnaire,
+                                            
                                             user_twitter_listed_count,
                                             twitter_account_date_creation,
                                             user_twitter_tweets_liked_count,
+
+                                            user_questionnaire,
                                             username,
                                             twitter_post_list)
 
