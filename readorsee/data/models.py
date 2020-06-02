@@ -254,7 +254,7 @@ class TwitterPost:
     def __init__(
         self, 
         tweet_text, 
-        tweet_date, 
+        date, 
         tweet_retweet_count,
         tweet_favorite_count, 
         tweet_hashtags_count, 
@@ -264,7 +264,9 @@ class TwitterPost:
     ):
 
         self.tweet_text = tweet_text
-        self.tweet_date = tweet_date
+
+        self.date = datetime.strptime(date, "%Y-%m-%d")
+        
         self.tweet_retweet_count = tweet_retweet_count
         self.tweet_favorite_count = tweet_favorite_count
         self.tweet_hashtags_count = tweet_hashtags_count
@@ -275,8 +277,8 @@ class TwitterPost:
     def get_tweet_text(self):
         return self.tweet_text
         
-    def get_tweet_date(self):
-        return self.tweet_date
+    def get_date(self):
+        return self.date
 
     def get_tweet_retweet_count(self):
         return self.tweet_retweet_count
