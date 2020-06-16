@@ -91,11 +91,12 @@ class StratifyFacade():
 
 class StratifyTwitterFacade():
 
-    def __init__(self, algorithm="dumb_twitter_stratifie"):
+    def __init__(self, algorithm="local_search_twitter"):
         self._data = None
         self._algorithm = algorithm
 
-    def stratify(self, n_sets=1, days=[60, 212, 365], save=True):
+    def stratify(self, tr_size=0.6, val_size=0.2, te_size=0.2,
+                 n_sets=10, days=[60, 212, 365], save=True):
         """ Stratify data according to params """
 
         pprocess_facade = PreProcessFacade("twitter_external", save)
@@ -103,10 +104,23 @@ class StratifyTwitterFacade():
         data = pprocess_facade.process_pipeline()
         participants = data["participants"]
 
-        if self._algorithm == "dumb_twitter_stratifie":
+        if self._algorithm == "simple_twitter_stratifie":
             stratification_algorithm = stratification.SimpleTwitterStratifie(n_sets, days)
+            self._data = stratification_algorithm.stratify(participants)
+        elif self._algorithm == "local_search_twitter":
+            stratification_algorithm = stratification.LocalSearchTwitter(
+                tr_size, val_size, te_size)
 
-        self._data = stratification_algorithm.stratify(participants)
+            self._data = {}
+
+            for d in days:
+                attr_name = "data_" + str(d)
+                self._data[attr_name] = []
+                for n in range(n_sets):
+                    print("Dataset {} : ".format(n), end="")
+                    stratified = stratification_algorithm.stratify(
+                        participants, d)
+                    self._data[attr_name].append(stratified)
 
         return self._data
 
