@@ -5,9 +5,11 @@ import torch.nn as nn
 import torch
 from torch.optim import Adam
 from torch.utils.data import DataLoader, SequentialSampler, RandomSampler
-from transformers import BertForSequenceClassification, BertForSequenceClassificationPooling, AdamW, BertConfig
+# from transformers import BertForSequenceClassification, BertForSequenceClassificationPooling, AdamW, BertConfig
 from transformers import get_linear_schedule_with_warmup
+from readorsee.models.models import BertForSequenceClassificationWithPooler
 from readorsee import settings
+from readorsee.optim.adamw import mAdamW
 import numpy as np
 import time
 import datetime
@@ -30,7 +32,6 @@ parser.add_argument("--wi", type=int, default=None)
 parser.add_argument("--do", type=int, default=None)
 parser.add_argument("--save-name", type=str, default=None)
 parser.add_argument("--bert-pooling", type=int, default=0)
-parser.add_argument("--pooling-method", type=str, default="concat") #can be "mean" or "concat"
 parser.add_argument("--save-model", type=int, default=0)
 parser.add_argument("--bert-size", type=str, default="base") # "base" or "large"
 
@@ -48,7 +49,6 @@ wi = args.wi
 do = args.do
 save_name = args.save_name
 bert_pooling = args.bert_pooling
-pooling_method = args.pooling_method
 save_model = args.save_model
 bert_size = args.bert_size
 
@@ -71,7 +71,7 @@ device = torch.device(f"cuda:{gpu}")
 
 config = Config()
 
-print(f"Parameters: Dataset={dataset}; GPU={gpu}; Period={period}; Save Stats={save_stats}; WI={wi}; DO={do}; Save Name={save_name}; Bert Pooling={bert_pooling}; Pooling Method={pooling_method}; Save Model={save_model}; Bert Size={bert_size}.")
+print(f"Parameters: Dataset={dataset}; GPU={gpu}; Period={period}; Save Stats={save_stats}; WI={wi}; DO={do}; Save Name={save_name}; Bert Pooling={bert_pooling}; Save Model={save_model}; Bert Size={bert_size}.")
 
 if wi is not None and do is not None:
     combinations = [(do, wi)]
@@ -95,10 +95,10 @@ for comb in combinations:
     test_corpus = DepressionCorpusTransformer(period, dataset, "test", config)
 
     # HYPERPARAMS
-    batch_size = 32
+    batch_size = 16
     lr = 2e-5
     epochs = 3
-    dropout = 0.1
+    gradient_accumulation_steps = 1
 
     set_seed(seed_do)
     train_dataloader = DataLoader(
@@ -130,15 +130,22 @@ for comb in combinations:
     # bert_size = config.general["bert_size"].lower()
     bert_path = settings.PATH_TO_BERT[bert_size]
     if bert_pooling:
-        print(f"Using BertForSequenceClassificationPooling with {pooling_method} method")
-        model = BertForSequenceClassificationPooling.from_pretrained(
+        print(f"Using BertForSequenceClassificationWithPooler")
+        # model = BertForSequenceClassificationPooling.from_pretrained(
+        #     bert_path,
+        #     num_labels = 2,
+        #     output_attentions = False,
+        #     output_hidden_states = True,
+        #     pooling_mode=pooling_method,
+        #     last_pooling_layers = 4
+        # )
+        model = BertForSequenceClassificationWithPooler.from_pretrained(
             bert_path,
             num_labels = 2,
             output_attentions = False,
-            output_hidden_states = True,
-            pooling_mode=pooling_method,
-            last_pooling_layers = 4
+            output_hidden_states = True
         )
+
         # Here we use last_pooling_layers = 4, i.e., we get the
         # last 4 layers and concat their CLS token representation
     else:
@@ -154,17 +161,38 @@ for comb in combinations:
     set_seed(seed_wi)
     nn.init.normal_(model.classifier.weight.data, 0, 0.02)
     nn.init.zeros_(model.classifier.bias.data)
-    optimizer = Adam(model.parameters(), lr = lr, eps = 1e-8)
+    model.bert.pooler.reset_parameters()
+    # optimizer = Adam(model.parameters(), lr = lr, eps = 1e-8)
+    no_decay = ["bias", "LayerNorm.weight"]  # no weight decay for these params
+
+    optimizer_grouped_parameters = [
+        {
+            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay) and p.requires_grad],  # keep only params that require a gradient
+            "weight_decay": 0.01,
+        },
+        {
+            "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay) and p.requires_grad],  # keep only params that require a gradient
+            "weight_decay": 0.0
+        },
+    ]
+    optimizer = mAdamW(
+        optimizer_grouped_parameters, 
+        lr=lr,
+        betas=(0.9, 0.999),
+        eps=0.000001, 
+        correct_bias=True,
+        local_normalization=False,
+        max_grad_norm=1.0
+    )
+    t_total = len(train_dataloader) // gradient_accumulation_steps * epochs
+    warmup_steps = int(t_total * 0.1) # 10% of total steps during fine-tuning
+
     total_steps = len(train_dataloader) * epochs
     scheduler = get_linear_schedule_with_warmup(
         optimizer, 
-        num_warmup_steps = 0,
-        num_training_steps = total_steps
+        num_warmup_steps = warmup_steps,
+        num_training_steps = t_total # We used total_steps before.... Why?
     )
-    def flat_accuracy(preds, labels):
-        pred_flat = np.argmax(preds, axis=1).flatten()
-        labels_flat = labels.flatten()
-        return np.sum(pred_flat == labels_flat) / len(labels_flat)
 
     def format_time(elapsed):
         '''
@@ -180,6 +208,8 @@ for comb in combinations:
     training_stats = []
     total_t0 = time.time()
     mean_val_acc_over_epochs = 0
+    threshold = 0.5
+    logit_threshold = torch.tensor(threshold / (1 - threshold), device=device).log()
     for epoch_i in range(0, epochs):
         print("")
         print('======== Epoch {:} / {:} ========'.format(epoch_i + 1, epochs))
@@ -212,7 +242,7 @@ for comb in combinations:
             b_input_mask = batch_inputs["attention_mask"].squeeze().to(device)
             if b_input_mask.dim() == 1:
                 b_input_mask = b_input_mask.unsqueeze(0)
-            b_labels = batch_labels.to(device)
+            b_labels = batch_labels.float().to(device)
 
             # Always clear any previously calculated gradients before performing a
             # backward pass. PyTorch doesn't do this automatically because 
@@ -237,10 +267,10 @@ for comb in combinations:
             # calculate the average loss at the end. `loss` is a Tensor containing a
             # single value; the `.item()` function just returns the Python value 
             # from the tensor.
-            total_train_loss += loss.item()
-
             # Perform a backward pass to calculate the gradients.
             loss.backward()
+
+            total_train_loss += loss.item() * len(b_labels)
 
             # Clip the norm of the gradients to 1.0.
             # This is to help prevent the "exploding gradients" problem.
@@ -255,7 +285,8 @@ for comb in combinations:
             scheduler.step()
 
         # Calculate the average loss over all of the batches.
-        avg_train_loss = total_train_loss / len(train_dataloader)            
+        # print(f"====>SIZE OF TRAIN DATALOADER={len(train_corpus)}")
+        avg_train_loss = total_train_loss / len(train_corpus)            
         
         # Measure how long this epoch took.
         training_time = format_time(time.time() - t0)
@@ -280,7 +311,7 @@ for comb in combinations:
         model.eval()
 
         # Tracking variables 
-        total_eval_accuracy = 0
+        total_eval_accuracy = 0.0
         total_eval_loss = 0
         nb_eval_steps = 0
 
@@ -303,7 +334,7 @@ for comb in combinations:
             b_input_mask = batch_inputs["attention_mask"].squeeze().to(device)
             if b_input_mask.dim() == 1:
                 b_input_mask = b_input_mask.unsqueeze(0)
-            b_labels = batch_labels.to(device)
+            b_labels = batch_labels.float().to(device)
             
             # Tell pytorch not to bother with constructing the compute graph during
             # the forward pass, since this is only needed for backprop (training).
@@ -322,23 +353,26 @@ for comb in combinations:
                                     labels=b_labels)
                 
             # Accumulate the validation loss.
-            total_eval_loss += loss.item()
+            total_eval_loss += loss.item() * len(b_labels)
+            preds = (logits > logit_threshold).squeeze()
+            total_eval_accuracy += torch.sum(preds.int() == b_labels.data.int()).float()
 
             # Move logits and labels to CPU
-            logits = logits.detach().cpu().numpy()
-            label_ids = b_labels.to('cpu').numpy()
+            # logits = logits.detach().cpu().numpy()
+            # label_ids = b_labels.to('cpu').numpy()
 
             # Calculate the accuracy for this batch of test sentences, and
             # accumulate it over all batches.
-            total_eval_accuracy += flat_accuracy(logits, label_ids)
+            # total_eval_accuracy += flat_accuracy(logits, label_ids)
             
 
         # Report the final accuracy for this validation run.
-        avg_val_accuracy = total_eval_accuracy / len(validation_dataloader)
+        # print(f"====> Avg_val_accuracy type={}")
+        avg_val_accuracy = total_eval_accuracy / len(val_corpus)
         print("  Accuracy: {0:.2f}".format(avg_val_accuracy))
 
         # Calculate the average loss over all of the batches.
-        avg_val_loss = total_eval_loss / len(validation_dataloader)
+        avg_val_loss = total_eval_loss / len(val_corpus)
         
         # Measure how long the validation run took.
         validation_time = format_time(time.time() - t0)
@@ -352,12 +386,12 @@ for comb in combinations:
                 'epoch': epoch_i + 1,
                 'Training Loss': avg_train_loss,
                 'Valid. Loss': avg_val_loss,
-                'Valid. Accur.': avg_val_accuracy,
+                'Valid. Accur.': avg_val_accuracy.item(),
                 'Training Time': training_time,
                 'Validation Time': validation_time
             }
         )
-        mean_val_acc_over_epochs += avg_val_accuracy
+        mean_val_acc_over_epochs += avg_val_accuracy.item()
 
     mean_val_acc_over_epochs /= epochs
     print("")
@@ -388,16 +422,23 @@ for comb in combinations:
 if save_model:
 
     if bert_pooling:
-        print(f"Recreating BertForSequenceClassificationPooling with {pooling_method} method for saving...")
-        model = BertForSequenceClassificationPooling.from_pretrained(
+        print(f"Recreating BertForSequenceClassificationPooling for saving...")
+        model = BertForSequenceClassificationWithPooler.from_pretrained(
             bert_path,
             num_labels = 2,
             output_attentions = False,
             output_hidden_states = True,
-            pooling_mode=pooling_method,
-            last_pooling_layers = 4,
             state_dict=best_model_wts
         )
+        # model = BertForSequenceClassificationPooling.from_pretrained(
+        #     bert_path,
+        #     num_labels = 2,
+        #     output_attentions = False,
+        #     output_hidden_states = True,
+        #     pooling_mode=pooling_method,
+        #     last_pooling_layers = 4,
+        #     state_dict=best_model_wts
+        # )
         # Here we use last_pooling_layers = 4, i.e., we get the
         # last 4 layers and concat their CLS token representation
     else:
@@ -409,7 +450,10 @@ if save_model:
             output_hidden_states = False,
             state_dict=best_model_wts
         )
-    model_path = Path(settings.PATH_TO_BERT_MODELS_FOLDER, save_name)
+    if save_name:
+        model_path = Path(settings.PATH_TO_BERT_MODELS_FOLDER, save_name)
+    else:
+        model_path = Path(settings.PATH_TO_BERT_MODELS_FOLDER, f"dataset-{dataset}-{period}")
     model_path.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(model_path)
 
@@ -417,6 +461,6 @@ if save_stats:
     if save_name:
         save_path = os.path.join(settings.PATH_TO_BERT_FINE_TUNING_DATA, f"{save_name}.pk")
     else:
-        save_path = os.path.join(settings.PATH_TO_BERT_FINE_TUNING_DATA, f"dataset-{dataset}.pk")
+        save_path = os.path.join(settings.PATH_TO_BERT_FINE_TUNING_DATA, f"dataset-{dataset}-{period}.pk")
     with open(save_path, "wb") as f:
         pk.dump(save_data, f)
