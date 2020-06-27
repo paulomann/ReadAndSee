@@ -14,7 +14,7 @@ import os
 import glob
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
-from readorsee.training import train_model
+from readorsee.training import train_model, train_model_twitter
 from readorsee.data.models import Config
 import torch.optim as optim
 from torch.optim import lr_scheduler
@@ -182,7 +182,7 @@ class DetectDepressionExperiment():
         model = self.model(self.config)
         return model
 
-class DetectDepressionExperimenTrainValOnInstaAndTestOnTwitter():
+class DetectDepressionExperimenTrainValOnInstaAndTestOnTwitterLocalSearchStratification():
     """
     Class used to make the experiment for the sentence embeddings
     with AVG, SIF, and PMEAN aggregators.
@@ -289,6 +289,286 @@ class DetectDepressionExperimenTrainValOnInstaAndTestOnTwitter():
         embedder = embedder.lower()
         aggregator = media_config.get("mean", "")
         exp_name = f"{media_type}_{days}_{embedder}_train_only_insta_test_only_twitter"
+
+        if aggregator and "bow" not in self.embedders:
+            if use_lstm: aggregator = "LSTM"
+            exp_name = exp_name + f"_{aggregator}"
+        if media_type == "ftrs":
+            features = media_config["features"].replace("_", "-")
+            exp_name = exp_name + f"_{features}"
+
+        return exp_name
+
+    def print_metrics(self, results, media_type):
+        print(f"=====================>For {media_type}")
+        metrics = results[media_type]
+        for k, v in metrics.items():
+            print(f"===>For Class 1 [More depressed] with {k} days")
+            u = v["user"]
+            p = v["post"]
+            print(f">User:\n\t Precision: {u['precision']} \t Recall: {u['recall']}" \
+                  f"\t F1: {u['f1']}")
+            if  p:
+                print(f">Post:\n\t Precision: {p['precision']} \t Recall: {p['recall']}" \
+                    f"\t F1: {p['f1']}")
+
+    def load_fasttext_model(self):
+        fasttext = load_facebook_model(
+            settings.PATH_TO_FASTTEXT_PT_EMBEDDINGS, encoding="utf-8")
+        return fasttext
+
+    def instantiate_model(self):
+        model = self.model(self.config)
+        return model
+
+class DetectDepressionExperimenTrainValOnInstaAndTestOnTwitterSimpleStratification():
+    """
+    Class used to make the experiment for the sentence embeddings
+    with AVG, SIF, and PMEAN aggregators.
+
+    Fist we train the model for the parameters specified in the 
+    settings.PATH_TO_CLFS_OPTIONS, next we make the predictions
+    and calculate the Precision, Recall and F1 scores, saving
+    the experiments data in a *.experiment file, which is an 
+    object stored with pickle.
+
+    """
+
+    def __init__(self, options_path: Path = None):
+        self.config = Config(options_path)
+        self.media_type = self.config.general["media_type"]
+        self.media_config = getattr(self.config, self.media_type)
+        self.model_name = self.config.general["class_model"]
+        self.model = getattr(models, self.model_name)
+        self.embedders = self.get_embedder_names()
+        print("======================")
+        print(f"Using {self.model.__name__} model")
+        print(f"General Configuration: {self.config.general}")
+        print(f"Media Configuration: {self.media_config}")
+        print(f"Embedders: {self.embedders}")
+        print("======================")
+
+    def _list_from_tensor(self, tensor):
+        return list(tensor.cpu().detach().numpy())
+    
+    def get_embedder_names(self):
+        if self.media_type == "both":
+            return [self.media_config["txt_embedder"], self.media_config["img_embedder"]]
+        elif self.media_type == "ftrs":
+            return ["MLPClf"]
+        else:
+            return [self.media_config[self.media_type + "_embedder"]]
+
+    def run(self, 
+            threshold=0.5,
+            training_verbose=True,
+            periods=[60, 212, 365]
+        ):
+
+        datasets = list(range(0,10))
+        fasttext = (self.load_fasttext_model() if "fasttext" in self.embedders
+                    else None)
+        results = {self.media_type:{d:{} for d in periods}}
+        cm = ConfusionMatrix([0,1])
+
+        print(f"===Using {self.media_type} media")
+        for days in periods:
+            for dataset in datasets:
+                print(f"Training model for {days} days and dataset {dataset}...")
+                model = self.instantiate_model()
+                model = train_model(model,
+                                    days,
+                                    dataset,
+                                    fasttext,
+                                    self.config,
+                                    training_verbose)
+                # We are using the simple stratifie code so it only uses 1 dataset for twitter data
+                test_loader = self._get_loader(days, fasttext, 0)
+                predictor = Predictor(model, self.config)
+                cm = predictor.predict(test_loader, cm, threshold)
+                self.free_model_memory(model)
+            experiment_name = self.get_experiment_name(self.media_type, days)
+            print(experiment_name)
+            user_results, post_results = cm.get_mean_metrics_of_all_experiments(
+                self.config
+            )
+            cm.save_experiments(experiment_name)
+            cm.reset_experiments()
+            results[self.media_type][days] = {"user": user_results, "post": post_results}
+            print(f"===>For Class 1 [More depressed] with {days} days")
+            print(f"{results[self.media_type][days]}")
+
+        self.print_metrics(results, self.media_type)
+
+        return results
+
+    def _get_loader(self, days, fasttext, dataset):
+
+        test = DepressionCorpusTwitter(observation_period=days, 
+                                subset="test",
+                                fasttext=fasttext,
+                                dataset=dataset,
+                                config=self.config)
+            
+        test_loader = DataLoader(test,
+                                 batch_size=self.config.general["batch_size"],
+                                 shuffle=self.config.general["shuffle"],
+                                 pin_memory=True,
+                                 worker_init_fn=_init_fn)
+        return test_loader
+    
+    def free_model_memory(self, model):
+        del model
+        torch.cuda.empty_cache()
+        if "bow" in self.embedders: os.remove(settings.PATH_TO_SERIALIZED_TFIDF)
+    
+    def get_experiment_name(self, media_type, days):
+        media_config = getattr(self.config, media_type)
+        use_lstm = media_config.get("use_lstm", False)
+        embedder = "-".join(self.embedders) + "-" + self.model_name
+        embedder = embedder.lower()
+        aggregator = media_config.get("mean", "")
+        exp_name = f"{media_type}_{days}_{embedder}"
+
+        if aggregator and "bow" not in self.embedders:
+            if use_lstm: aggregator = "LSTM"
+            exp_name = exp_name + f"_{aggregator}"
+        if media_type == "ftrs":
+            features = media_config["features"].replace("_", "-")
+            exp_name = exp_name + f"_{features}"
+
+        return exp_name
+
+    def print_metrics(self, results, media_type):
+        print(f"=====================>For {media_type}")
+        metrics = results[media_type]
+        for k, v in metrics.items():
+            print(f"===>For Class 1 [More depressed] with {k} days")
+            u = v["user"]
+            p = v["post"]
+            print(f">User:\n\t Precision: {u['precision']} \t Recall: {u['recall']}" \
+                  f"\t F1: {u['f1']}")
+            if  p:
+                print(f">Post:\n\t Precision: {p['precision']} \t Recall: {p['recall']}" \
+                    f"\t F1: {p['f1']}")
+
+    def load_fasttext_model(self):
+        fasttext = load_facebook_model(
+            settings.PATH_TO_FASTTEXT_PT_EMBEDDINGS, encoding="utf-8")
+        return fasttext
+
+    def instantiate_model(self):
+        model = self.model(self.config)
+        return model
+
+class DetectDepressionExperimenTrainValOnTwitterAndTestOnInstaSimpleStratification():
+    """
+    Class used to make the experiment for the sentence embeddings
+    with AVG, SIF, and PMEAN aggregators.
+
+    Fist we train the model for the parameters specified in the 
+    settings.PATH_TO_CLFS_OPTIONS, next we make the predictions
+    and calculate the Precision, Recall and F1 scores, saving
+    the experiments data in a *.experiment file, which is an 
+    object stored with pickle.
+
+    """
+
+    def __init__(self, options_path: Path = None):
+        self.config = Config(options_path)
+        self.media_type = self.config.general["media_type"]
+        self.media_config = getattr(self.config, self.media_type)
+        self.model_name = self.config.general["class_model"]
+        self.model = getattr(models, self.model_name)
+        self.embedders = self.get_embedder_names()
+        print("======================")
+        print(f"Using {self.model.__name__} model")
+        print(f"General Configuration: {self.config.general}")
+        print(f"Media Configuration: {self.media_config}")
+        print(f"Embedders: {self.embedders}")
+        print("======================")
+
+    def _list_from_tensor(self, tensor):
+        return list(tensor.cpu().detach().numpy())
+    
+    def get_embedder_names(self):
+        if self.media_type == "both":
+            return [self.media_config["txt_embedder"], self.media_config["img_embedder"]]
+        elif self.media_type == "ftrs":
+            return ["MLPClf"]
+        else:
+            return [self.media_config[self.media_type + "_embedder"]]
+
+    def run(self, 
+            threshold=0.5,
+            training_verbose=True,
+            periods=[60, 212, 365]
+        ):
+
+        datasets = list(range(0,10))
+        fasttext = (self.load_fasttext_model() if "fasttext" in self.embedders
+                    else None)
+        results = {self.media_type:{d:{} for d in periods}}
+        cm = ConfusionMatrix([0,1])
+
+        print(f"===Using {self.media_type} media")
+        for days in periods:
+            for dataset in datasets:
+                print(f"Training model for {days} days and dataset {dataset}...")
+                model = self.instantiate_model()
+                # We are using the simple stratifie code so it only uses 1 dataset for twitter data
+                model = train_model_twitter(model,
+                                    days,
+                                    0,
+                                    fasttext,
+                                    self.config,
+                                    training_verbose)
+                test_loader = self._get_loader(days, fasttext, dataset)
+                predictor = Predictor(model, self.config)
+                cm = predictor.predict(test_loader, cm, threshold)
+                self.free_model_memory(model)
+            experiment_name = self.get_experiment_name(self.media_type, days)
+            print(experiment_name)
+            user_results, post_results = cm.get_mean_metrics_of_all_experiments(
+                self.config
+            )
+            cm.save_experiments(experiment_name)
+            cm.reset_experiments()
+            results[self.media_type][days] = {"user": user_results, "post": post_results}
+            print(f"===>For Class 1 [More depressed] with {days} days")
+            print(f"{results[self.media_type][days]}")
+
+        self.print_metrics(results, self.media_type)
+
+        return results
+
+    def _get_loader(self, days, fasttext, dataset):
+
+        test = DepressionCorpus(observation_period=days, 
+                                subset="test",
+                                fasttext=fasttext,
+                                dataset=dataset,
+                                config=self.config)
+            
+        test_loader = DataLoader(test,
+                                 batch_size=self.config.general["batch_size"],
+                                 shuffle=self.config.general["shuffle"],
+                                 pin_memory=True,
+                                 worker_init_fn=_init_fn)
+        return test_loader
+    
+    def free_model_memory(self, model):
+        del model
+        torch.cuda.empty_cache()
+        if "bow" in self.embedders: os.remove(settings.PATH_TO_SERIALIZED_TFIDF)
+    
+    def get_experiment_name(self, media_type, days):
+        media_config = getattr(self.config, media_type)
+        use_lstm = media_config.get("use_lstm", False)
+        embedder = "-".join(self.embedders) + "-" + self.model_name
+        embedder = embedder.lower()
+        aggregator = media_config.get("mean", "")
+        exp_name = f"{media_type}_{days}_{embedder}"
 
         if aggregator and "bow" not in self.embedders:
             if use_lstm: aggregator = "LSTM"

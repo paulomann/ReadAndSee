@@ -5,12 +5,12 @@ from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 import copy
 import time
-from readorsee.data.dataset import DepressionCorpus
+from readorsee.data.dataset import DepressionCorpus, DepressionCorpusTwitter
 from gensim.models.fasttext import load_facebook_model
 import json
 import numpy as np
 
-__all__ = ["Trainer", "train_model"]
+__all__ = ["Trainer", "train_model", "train_model_twitter"]
 
 class Trainer():
 
@@ -152,6 +152,67 @@ def train_model(model, days, dataset, fasttext, config, verbose):
                               worker_init_fn=_init_fn)
 
     val = DepressionCorpus(observation_period=days,
+                            subset="val",
+                            fasttext=fasttext,
+                            dataset=dataset,
+                            config=config
+                            )
+
+    val_loader = DataLoader(val,
+                            batch_size=general["batch_size"],
+                            shuffle=general["shuffle"],
+                            pin_memory=True,
+                            worker_init_fn=_init_fn)
+
+    dataloaders = {"train": train_loader, "val": val_loader}
+    dataset_sizes = {"train": len(train), "val": len(val)}
+
+    trainer = Trainer(model,
+                      dataloaders,
+                      dataset_sizes,
+                      criterion,
+                      optimizer_ft,
+                      exp_lr_scheduler,
+                      config,
+                      general["epochs"])
+
+    trained_model = trainer.train_model(verbose)
+    return trained_model
+
+def train_model_twitter(model, days, dataset, fasttext, config, verbose):
+    print("======================")
+    print("Training...")
+    media_type = config.general["media_type"]
+    media_config = getattr(config, media_type)
+    embedder = media_config.get("txt_embedder", "").lower()
+
+    train = DepressionCorpusTwitter(
+        observation_period=days,
+        subset="train",
+        fasttext=fasttext,
+        dataset=dataset,
+        config=config
+    )
+
+    if embedder == "bow":
+        model.set_out_ftrs(train.bow_ftrs_size)
+
+    criterion = nn.BCEWithLogitsLoss()
+    parameters = filter(lambda p: p.requires_grad, model.parameters())
+    general = config.general
+    optimizer_name = media_config["optimizer"]["type"]
+    opt_params = media_config["optimizer"]["params"]
+    scheduler = media_config["scheduler"]
+    optimizer_ft = getattr(optim, optimizer_name)(parameters, **opt_params)
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, **scheduler)
+
+    train_loader = DataLoader(train,
+                              batch_size=general["batch_size"],
+                              shuffle=general["shuffle"],
+                              pin_memory=True,
+                              worker_init_fn=_init_fn)
+
+    val = DepressionCorpusTwitter(observation_period=days,
                             subset="val",
                             fasttext=fasttext,
                             dataset=dataset,

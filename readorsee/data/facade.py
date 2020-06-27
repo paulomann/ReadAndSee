@@ -105,6 +105,8 @@ class StratifyTwitterFacade():
         participants = data["participants"]
 
         if self._algorithm == "simple_twitter_stratifie":
+            # the simple twitter stratifie uses only 1 set
+            n_sets = 1
             stratification_algorithm = stratification.SimpleTwitterStratifie(n_sets, days)
             self._data = stratification_algorithm.stratify(participants)
         elif self._algorithm == "local_search_twitter":

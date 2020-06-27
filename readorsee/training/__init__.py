@@ -1,1 +1,1 @@
-from .training import Trainer, train_model
+from .training import Trainer, train_model, train_model_twitter

@@ -173,6 +173,34 @@ class DepressionCorpus(torch.utils.data.Dataset):
             return data + (label,)
         return data + (label, u_name)
 
+    def _get_posts_list_from_users_user_granularity(self, user_list):
+        """ Return a list of posts from a user_list (all posts from each user)
+        
+        This function consider an instagram post with multiples images as 
+        multiples posts with the same caption for all images in the same post.
+        """
+        data = []
+        for u in user_list:
+            u_posts_txt = []
+            for post in u.get_posts_from_qtnre_answer_date(self._ob_period):
+                images_paths = [
+                    os.path.join(settings.PATH_TO_INSTAGRAM_DATA, p)
+                    for p in post.get_img_path_list()
+                ]
+                if self._data_type in ["both", "txt"]:
+                    images_paths = [images_paths[0]]
+                text = post.caption
+                label = u.questionnaire.get_binary_bdi()
+                u_name = u.username
+                for img_path in images_paths:
+                    img, txt = self.preprocess_data(img_path, text)
+                    for word in txt:
+                        u_posts_txt.append(word)
+            data.append((img, u_posts_txt, label, u_name))
+
+        return data
+        
+
     def _get_posts_list_from_users(self, user_list):
         """ Return a list of posts from a user_list
         
@@ -548,6 +576,27 @@ class DepressionCorpusTwitter(torch.utils.data.Dataset):
                 txt = self.preprocess_data(text)
                 img = ''
                 data.append((img, txt, label, u_name))
+
+        return data
+
+    def _get_posts_list_from_users_user_granularity(self, user_list):
+        """ Return a list of posts from a user_list (all posts from each user)
+        
+        This function consider an instagram post with multiples images as 
+        multiples posts with the same caption for all images in the same post.
+        """
+        data = []
+        for u in user_list:
+            u_posts = []
+            for post in u.get_posts_from_qtnre_answer_date(self._ob_period):
+                text = post.tweet_text
+                label = u.questionnaire.get_binary_bdi()
+                u_name = u.username
+                txt = self.preprocess_data(text)
+                for word in txt:
+                    u_posts.append(word)
+                img = ''
+            data.append((img, u_posts, label, u_name))
 
         return data
 
