@@ -75,8 +75,11 @@ class mAdamW(Optimizer):
 
                 # Decay the first and second moment running average coefficient
                 # In-place operations to update the averages at the same time
+                # This is just m_t = beta_1 * m_t-1 + (1 - beta_1) * g_t
                 exp_avg.mul_(beta1).add_(grad, alpha=1.0 - beta1)
+                # This is just v_t = beta_2 * v_t-1 + (1 - beta_2) * g_t^2
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1.0 - beta2)
+                # This is just sqrt(v_t) + eps
                 denom = exp_avg_sq.sqrt().add_(group["eps"])
 
                 step_size = group["lr"]
@@ -84,7 +87,9 @@ class mAdamW(Optimizer):
                     bias_correction1 = 1.0 - beta1 ** state["step"]
                     bias_correction2 = 1.0 - beta2 ** state["step"]
                     step_size = step_size * math.sqrt(bias_correction2) / bias_correction1
+                    # print(f"Learning rate: {step_size}")
 
+                # This is just p.data[i] = p.data[i] + (-step_size) * exp_avg[i] / denom[i]
                 p.data.addcdiv_(-step_size, exp_avg, denom)
 
                 # Just adding the square of the weights to the loss function is *not*

@@ -477,7 +477,7 @@ class DepressionCorpusTransformer(torch.utils.data.Dataset):
         text = self._tokenizer.encode_plus(
             ftfy.fix_text(text),
             add_special_tokens=True,
-            max_length=200,
+            max_length=150,
             pad_to_max_length=True,
             return_tensors = "pt",
             return_attention_mask = True

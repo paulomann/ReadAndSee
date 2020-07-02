@@ -272,8 +272,10 @@ class ConfusionMatrix:
             real_class = int(samples[samples["id"] == u]["true"].values[0])
             preds = samples[samples["id"] == u]["pred"].values.astype(int)
             logits = samples[samples["id"] == u]["logits"].values.astype(float)
-            counts = np.bincount(preds)
-            pred_class = len(counts) - np.argmax(counts[::-1]) - 1
+            pred_class = 1 if logits.mean() > 0.5 else 0
+            # print(f"=====>Logits: {logits}\nType of logits: {type(logits)}")
+            # counts = np.bincount(preds)
+            # pred_class = len(counts) - np.argmax(counts[::-1]) - 1
             Y_true_per_user.append(real_class)
             Y_pred_per_user.append(pred_class)
             arr_logits.append(logits)
