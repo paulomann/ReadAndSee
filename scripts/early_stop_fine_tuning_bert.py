@@ -176,6 +176,7 @@ def predict(
     cm.add_experiment(test_labels, pred_labels, logits_list, u_names, config)
     user_results, _ = cm.get_mean_metrics_of_all_experiments(config)
 
+
     if log_wandb:
         wandb.log(
             {
@@ -237,6 +238,7 @@ best_model_wts = None
 # for comb in :
 for comb in combinations:
     print(f"Running experiment for combination {comb}")
+    best_curr_val = 0
     seed_do = comb[0]
     seed_wi = comb[1]
 
@@ -307,12 +309,12 @@ for comb in combinations:
         last = last_layer_idx + 1
         for i in range(first, last):
             print(f"====>Reseting layer {i}!")
-            for name, module in model.bert.encoder.layer[last_layer_idx].named_modules():
+            for name, module in model.bert.encoder.layer[i].named_modules():
                 if any(x in name for x in ["dense", "query", "key", "value"]):
                     module.weight.data.normal_(0, 0.02)
                     module.bias.data.zero_()
 
-            model.bert.encoder.layer[last_layer_idx].output.LayerNorm = BertLayerNorm(model.bert.encoder.layer[last_layer_idx].output.dense.out_features, eps=1e-12)
+            model.bert.encoder.layer[i].output.LayerNorm = BertLayerNorm(model.bert.encoder.layer[i].output.dense.out_features, eps=1e-12)
 
         model.bert.pooler.reset_parameters()
     
@@ -447,18 +449,18 @@ for comb in combinations:
             # Perform a backward pass to calculate the gradients.
             loss.backward()
 
-            total_train_loss += loss.item() * len(b_labels)
+            total_train_loss += loss.detach().item() * len(b_labels)
 
             # Clip the norm of the gradients to 1.0.
             # This is to help prevent the "exploding gradients" problem.
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
-            if log_wandb and global_step % 50 == 0:
+            if log_wandb and global_step % 100 == 0:
                 layer_grads = {}
                 for name, param in model.named_parameters():
                     if param.grad is None:
                         continue
-                    grads = param.grad
+                    grads = param.grad.detach().cpu()
                     grads = grads.view(-1)
                     match = re.search("^.*\\.(\d+)\\..*$", name)
                     if match is not None:
@@ -562,8 +564,8 @@ for comb in combinations:
                                     labels=b_labels)
                 
             # Accumulate the validation loss.
-            total_eval_loss += loss.item() * len(b_labels)
-            preds = (logits > logit_threshold).squeeze()
+            total_eval_loss += loss.detach().item() * len(b_labels)
+            preds = (logits.detach() > logit_threshold).squeeze()
             total_eval_accuracy += torch.sum(preds.int() == b_labels.data.int()).float()
 
             # Move logits and labels to CPU
@@ -603,8 +605,11 @@ for comb in combinations:
             }
         )
         # Early Stopping
+
         if avg_val_accuracy > best_val_acc:
             print(f"New best model, saving it!")
+            if avg_val_accuracy > best_curr_val:
+                best_curr_val = avg_val_accuracy
             bestdo = seed_do
             bestwi = seed_wi
             if last_saved_model:
@@ -618,6 +623,9 @@ for comb in combinations:
             best_val_acc = avg_val_accuracy
             model.save_pretrained(model_path)
             best_epoch = epoch_i
+            n_epochs_no_improvement = 0
+        elif avg_val_accuracy > best_curr_val:
+            best_curr_val = avg_val_accuracy
             n_epochs_no_improvement = 0
         else:
             n_epochs_no_improvement += 1
@@ -653,8 +661,10 @@ for comb in combinations:
     del model
     torch.cuda.empty_cache()
 
-    if log_wandb:
-        predict(last_saved_model, period, dataset, batch_size, device, config)
+    # if log_wandb:
+
+
+predict(last_saved_model, period, dataset, batch_size, device, config)
 
 
 # if save_model:
