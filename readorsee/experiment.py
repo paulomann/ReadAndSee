@@ -327,7 +327,7 @@ class DetectDepressionExperimentTwitter():
 
 # Train, val on Instagram data and Test on twitter data
 
-class DetectDepressionExperimenTrainValOnInstaAndTestOnTwitterLocalSearchStratification():
+class DetectDepressionExperimentTrainValOnInstaAndTestOnTwitterLocalSearchStratification():
     """
     Class used to make the experiment for the sentence embeddings
     with AVG, SIF, and PMEAN aggregators.
@@ -433,7 +433,7 @@ class DetectDepressionExperimenTrainValOnInstaAndTestOnTwitterLocalSearchStratif
         embedder = "-".join(self.embedders) + "-" + self.model_name
         embedder = embedder.lower()
         aggregator = media_config.get("mean", "")
-        exp_name = f"{media_type}_{days}_{embedder}_train_only_insta_test_only_twitter"
+        exp_name = f"{media_type}_{days}_{embedder}"
 
         if aggregator and "bow" not in self.embedders:
             if use_lstm: aggregator = "LSTM"
@@ -466,7 +466,7 @@ class DetectDepressionExperimenTrainValOnInstaAndTestOnTwitterLocalSearchStratif
         model = self.model(self.config)
         return model
 
-class DetectDepressionExperimenTrainValOnInstaAndTestOnTwitterSimpleStratification():
+class DetectDepressionExperimentTrainValOnInstaAndTestOnTwitterSimpleStratification():
     """
     Class used to make the experiment for the sentence embeddings
     with AVG, SIF, and PMEAN aggregators.
@@ -608,7 +608,7 @@ class DetectDepressionExperimenTrainValOnInstaAndTestOnTwitterSimpleStratificati
 
 # Train, val on Twitter data and Test on Instagram data
 
-class DetectDepressionExperimenTrainValOnTwitterAndTestOnInstaLocalSearchStratification():
+class DetectDepressionExperimentTrainValOnTwitterAndTestOnInstaLocalSearchStratification():
     """
     Class used to make the experiment for the sentence embeddings
     with AVG, SIF, and PMEAN aggregators.
@@ -747,7 +747,7 @@ class DetectDepressionExperimenTrainValOnTwitterAndTestOnInstaLocalSearchStratif
         model = self.model(self.config)
         return model
 
-class DetectDepressionExperimenTrainValOnTwitterAndTestOnInstaSimpleStratification():
+class DetectDepressionExperimentTrainValOnTwitterAndTestOnInstaSimpleStratification():
     """
     Class used to make the experiment for the sentence embeddings
     with AVG, SIF, and PMEAN aggregators.
@@ -1049,8 +1049,8 @@ class ExperimentReader():
         assert len(Y_true_user) == len(Y_guess_user), "Incorrect shape between Y_true and Y_pred"
         return Y_true_user, Y_guess_user, aggregated_user_logits
     
-def get_experiments_results_df(logits_aggregator, experiments_folder=""):
-    exp_reader = ExperimentReader(logits_aggregator, experiments_folder, metrics=True)
+def get_experiments_results_df(logits_aggregator, experiments_folder="", metrics=True):
+    exp_reader = ExperimentReader(logits_aggregator, experiments_folder, metrics)
     df = []
     for experiment_metrics in exp_reader:
         df.append(experiment_metrics)
