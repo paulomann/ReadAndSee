@@ -21,7 +21,7 @@ from readorsee import settings
 from readorsee.data.facade import StratifyFacade
 from readorsee.data.facade import StratifyTwitterFacade
 from readorsee.data.models import Config
-from readorsee.data.preprocessing import NLTKTokenizer, Tokenizer
+from readorsee.data.preprocessing import NLTKTokenizer, Tokenizer, TokenizerV2, TokenizerV3
 from readorsee.features.feature_engineering import get_features, get_features_from_post
 from readorsee.features.sentence_embeddings import PMEAN, SIF
 
@@ -886,6 +886,155 @@ class DepressionCorpusTransformer(torch.utils.data.Dataset):
             img = img_path
 
         return img, text
+
+    def __len__(self):
+        return len(self._data)
+
+    def __getitem__(self, i):
+        img, caption, label, u_name = self._data[i]
+
+        if self._data_type == "txt":
+            data = (caption,)
+        elif self._data_type == "both":
+            data = (img,) + caption
+
+        if self._subset in ["train", "val"]:
+            return data + (label,)
+        return data + (label, u_name)
+
+class DepressionCorpusTwitterTransformer(torch.utils.data.Dataset):
+    def __init__(self, observation_period, dataset, subset, config, transform=None):
+        self.config = config
+        text_embedder = ""
+        data_type = self.config.general["media_type"]
+        media_config = getattr(self.config, data_type)
+        text_embedder = media_config["txt_embedder"].lower()
+        if text_embedder not in ["xlm"]:
+            raise ValueError(
+                f"{text_embedder} must be the 'xlm' embedder to be using DepressionCorpusTwitterXLM dataset."
+            )
+
+        # Making it only usable if data_type is txt
+
+        '''
+        if data_type not in ["txt", "both"]:
+            raise ValueError(
+                f"Data type '{data_type}' is not valid. It must be one of ['txt', 'both']"
+            )
+        '''
+        if data_type not in ["txt"]:
+            raise ValueError(
+                f"Data type '{data_type}' is not valid. It must be one of ['txt']"
+            )
+        
+        if transform is None:
+            transform = transforms.Compose(
+                [
+                    transforms.Resize([224, 224], interpolation=Image.LANCZOS),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
+                ]
+            )
+        self._transform = transform
+        subset_to_index = {"train": 0, "val": 1, "test": 2}
+        subset_idx = subset_to_index[subset]
+        self.text_embedder = text_embedder
+        self._data_type = data_type
+        self._subset = subset
+        self._dataset = dataset
+        self._ob_period = int(observation_period)
+        self._tokenizer = self._initialize_tokenizer()
+        # A list of datasets which in turn are a list
+        self._raw = StratifyTwitterFacade().load_stratified_data()
+        self._raw = self._raw["data_" + str(self._ob_period)][self._dataset]
+        self._raw = self._raw[subset_idx]
+        self._data = self._get_posts_list_from_users(self._raw)
+
+    def _initialize_tokenizer(self) -> BertTokenizer:
+        class_model = self.config.general["class_model"].lower()
+        bert_size = self.config.general["bert_size"].lower()
+        if "bert" not in class_model:
+            raise ValueError(
+                f"The parameter 'class_model' should be one of the BERT models, not {class_model}."
+            )
+        if bert_size not in ["large", "base"]:
+            raise ValueError(
+                f"The parameter 'bert_size' should be 'large' or 'base', not {bert_size}"
+            )
+
+        return BertTokenizer.from_pretrained(settings.PATH_TO_BERT[bert_size])
+
+    def _get_posts_list_from_users(self, user_list):
+        """ Return a list of posts from a user_list
+        
+        This function consider an instagram post with multiples images as 
+        multiples posts with the same caption for all images in the same post.
+        """
+        data = []
+        for u in user_list:
+            for post in u.get_posts_from_qtnre_answer_date(self._ob_period):
+                text = post.tweet_text
+                label = u.questionnaire.get_binary_bdi()
+                u_name = u.username
+                txt = self.preprocess_data(text)
+                img = ''
+                data.append((img, txt, label, u_name))
+
+        return data
+
+    def _get_posts_list_from_users_user_granularity(self, user_list):
+        """ Return a list of posts from a user_list (all posts from each user)
+        
+        This function consider an instagram post with multiples images as 
+        multiples posts with the same caption for all images in the same post.
+        """
+        data = []
+        for u in user_list:
+            u_posts = []
+            for post in u.get_posts_from_qtnre_answer_date(self._ob_period):
+                text = post.tweet_text
+                label = u.questionnaire.get_binary_bdi()
+                u_name = u.username
+                txt = self.preprocess_data(text)
+                for word in txt:
+                    u_posts.append(word)
+                img = ''
+            data.append((img, u_posts, label, u_name))
+
+        return data
+
+    def preprocess_data(self, text):
+        # Token indices sequence length is longer than the specified maximum sequence
+        # length for this model (530 > 512). Running this sequence through the model
+        # will result in indexing errors
+        # text = self._tokenizer.encode(text, max_length=511, return_tensors="pt")
+        # text = self._tokenizer.tokenize(ftfy.fix_text(text))
+        text = self._tokenizer.encode_plus(
+            ftfy.fix_text(text),
+            add_special_tokens=True,
+            max_length=200,
+            pad_to_max_length=True,
+            return_tensors = "pt",
+            return_attention_mask = True
+        )
+        
+        # you should not use img or both for twitter
+        '''
+        if self._data_type in ["img", "both"]:
+            image = Image.open(img_path)
+            img = image.copy()
+            image.close()
+            if self._transform is not None:
+                img = self._transform(img)
+        else:
+            img = img_path
+
+        return img, text
+        '''
+
+        return text
 
     def __len__(self):
         return len(self._data)
