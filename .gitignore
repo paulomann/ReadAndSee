@@ -21,3 +21,4 @@ models/experiments_options
 models/bert
 models/bert_fine_tuning_data
 reports
+wandb

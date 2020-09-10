@@ -871,10 +871,10 @@ class DepressionCorpusTransformer(torch.utils.data.Dataset):
         text = self._tokenizer.encode_plus(
             ftfy.fix_text(text),
             add_special_tokens=True,
-            max_length=200,
+            max_length=150,
             pad_to_max_length=True,
-            return_tensors = "pt",
-            return_attention_mask = True
+            return_tensors="pt",
+            return_attention_mask=True,
         )
         if self._data_type in ["img", "both"]:
             image = Image.open(img_path)
@@ -1053,7 +1053,16 @@ class DepressionCorpusTwitterTransformer(torch.utils.data.Dataset):
 
 
 class IterableDataset(torch.utils.data.Dataset):
-    def __init__(self, observation_period, data_type, dataset, subset, transform=None):
+    def __init__(
+        self,
+        observation_period,
+        data_type,
+        dataset,
+        subset,
+        transform=None,
+        preprocess_text=True,
+        preprocess_img=True
+    ):
         if data_type not in ["img", "txt", "both"]:
             raise ValueError(
                 f"Data type '{data_type}' is not valid. It must be one of ['txt', 'both']"
@@ -1068,6 +1077,8 @@ class IterableDataset(torch.utils.data.Dataset):
                     ),
                 ]
             )
+        self.preprocess_text = preprocess_text
+        self.preprocess_img = preprocess_img
         self._transform = transform
         subset_to_index = {"train": 0, "val": 1, "test": 2}
         subset_idx = subset_to_index[subset]
@@ -1111,13 +1122,17 @@ class IterableDataset(torch.utils.data.Dataset):
         # length for this model (530 > 512). Running this sequence through the model
         # will result in indexing errors
         # text = self._tokenizer.encode(text, max_length=511, return_tensors="pt")
-        text = self._tokenizer.tokenize(ftfy.fix_text(text))[:511]
+        text = (
+            self._tokenizer.tokenize(ftfy.fix_text(text))[:511]
+            if self.preprocess_text
+            else text
+        )
         if self._data_type in ["img", "both"]:
             image = Image.open(img_path)
             img = image.copy()
             image.close()
             if self._transform is not None:
-                img = self._transform(img)
+                img = self._transform(img) if self.preprocess_img else img
         else:
             img = img_path
 

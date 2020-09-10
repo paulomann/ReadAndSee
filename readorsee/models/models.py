@@ -331,7 +331,7 @@ class BertPoolerBase(BertPooler):
         self.config = config
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.dropout = nn.Dropout(0.1)  # this we don't have in default BertPooler
-        self.distribution = "uniform"
+        self.distribution = "normal"
         self.LayerNorm = BertLayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
         self.pooler_activation = nn.Tanh()
@@ -351,7 +351,6 @@ class BertPoolerBase(BertPooler):
             self.dense.bias.data.uniform_(-bound, bound)
             # self.dense.bias.data.zero_()
         elif self.distribution == 'normal':
-            print(f'std: {self.config.distribution_std}')
             # BERT initializes linear layers with: module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
             # where self.config.initializer_range = 0.02
             self.dense.weight.data.normal_(mean=0.0, std=0.02)
