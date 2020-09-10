@@ -259,6 +259,9 @@ class ConfusionMatrix:
         experiment["user_params"] = user_params
         self._experiments.append(experiment)
 
+    def str2bool(self, value):
+        return value.lower() in ("yes", "true", "t", "1")
+
     def get_truth_and_guess_for_user(self, post_truth, post_guess, post_logits, u_id):
         samples = np.array(list(zip(post_truth, post_guess, post_logits, u_id)))
         samples = pd.DataFrame(samples, columns=["true", "pred", "logits", "id"])
@@ -269,9 +272,18 @@ class ConfusionMatrix:
         Y_pred_per_user = []
         arr_logits = []
         for u in users:
-            real_class = int(samples[samples["id"] == u]["true"].values[0])
-            preds = samples[samples["id"] == u]["pred"].values.astype(int)
-            logits = samples[samples["id"] == u]["logits"].values.astype(float)
+            #real_class = int(samples[samples["id"] == u]["true"].values[0])
+            #preds = samples[samples["id"] == u]["pred"].values.astype(int)
+            #logits = samples[samples["id"] == u]["logits"].values.astype(float)
+
+            real_class = int(self.str2bool(samples[samples["id"] == u]["true"].values[0]))
+
+            preds_temp = np.array(samples[samples["id"] == u]["pred"].values) == True
+            preds = preds_temp.astype(int)
+
+            logits_temp = np.array(samples[samples["id"] == u]["logits"].values) == True
+            logits = logits_temp.astype(float)
+                        
             counts = np.bincount(preds)
             pred_class = len(counts) - np.argmax(counts[::-1]) - 1
             Y_true_per_user.append(real_class)
