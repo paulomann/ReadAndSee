@@ -1,4 +1,4 @@
-name: readorsee-v2
+name: readorsee-v2-linux
 channels:
   - pytorch
   - conda-forge
