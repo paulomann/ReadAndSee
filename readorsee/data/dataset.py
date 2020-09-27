@@ -21,7 +21,7 @@ from readorsee import settings
 from readorsee.data.facade import StratifyFacade
 from readorsee.data.facade import StratifyTwitterFacade
 from readorsee.data.models import Config
-from readorsee.data.preprocessing import NLTKTokenizer, Tokenizer, TokenizerV2, TokenizerV3
+from readorsee.data.preprocessing import NLTKTokenizer, Tokenizer, TokenizerV2, TokenizerV3, TokenizerMergeVocab
 from readorsee.features.feature_engineering import get_features, get_features_from_post
 from readorsee.features.sentence_embeddings import PMEAN, SIF
 

@@ -1,5 +1,5 @@
 from readorsee.data.models import Config
-from readorsee.data.dataset import DepressionCorpusTransformer
+from readorsee.data.dataset import DepressionCorpusTransformer, DepressionCorpusTwitterTransformer
 from readorsee.training.metrics import ConfusionMatrix
 import matplotlib.pyplot as plt
 import torch.nn as nn
