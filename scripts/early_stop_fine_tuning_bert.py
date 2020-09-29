@@ -47,6 +47,7 @@ parser.add_argument("--lr", type=float, default=2e-5)
 parser.add_argument("--epochs", type=int, default=20)
 parser.add_argument("--batch-size", type=int, default=16)
 parser.add_argument("--early-stop-patience", type=int, default=4)
+parser.add_argument("--bert-path", type=str, default="")
 
 
 args = parser.parse_args()
@@ -72,6 +73,7 @@ lr = args.lr
 epochs = args.epochs
 batch_size = args.batch_size
 patience = args.early_stop_patience
+args_bert_path = args.bert_path
 
 save_data = []
 
@@ -278,7 +280,7 @@ for comb in combinations:
                 num_workers=0
     )
 
-    bert_path = settings.PATH_TO_BERT[bert_size]
+    bert_path = args_bert_path if args_bert_path else settings.PATH_TO_BERT[bert_size]
     print(f"Loading bert_model = {bert_path}")
     if bert_pooling:
         print(f"Using BertForSequenceClassificationWithPooler")

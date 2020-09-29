@@ -611,3 +611,50 @@ class IterableDataset(torch.utils.data.Dataset):
         if self._subset in ["train", "val"]:
             return data + (label,)
         return data + (label, u_name)
+
+
+
+class TransferDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        observation_period,
+        dataset,
+        subset,
+    ):
+        subset_to_index = {"train": 0, "val": 1, "test": 2}
+        subset_idx = subset_to_index[subset]
+        self._subset = subset
+        self._dataset = dataset
+        self._ob_period = int(observation_period)
+        # A list of datasets which in turn are a list
+        self._raw = StratifyFacade().load_stratified_data()
+        self._raw = self._raw["data_" + str(self._ob_period)][self._dataset]
+        self._raw = self._raw[subset_idx]
+        self._data = self._get_posts_list_from_users(self._raw)
+
+    def _get_posts_list_from_users(self, user_list):
+        """ Return a list of posts from a user_list
+        
+        This function consider an instagram post with multiples images as 
+        multiples posts with the same caption for all images in the same post.
+        """
+        data = []
+        for u in user_list:
+            for post in u.get_posts_from_qtnre_answer_date(self._ob_period):
+                images_paths = [p for p in post.get_img_path_list()]
+                text = post.caption
+                label = u.questionnaire.get_bdi(category=False)
+                u_name = u.username
+                data.append((images_paths, text, label, u_name))
+
+        return data
+
+    def __len__(self):
+        return len(self._data)
+
+    def __getitem__(self, i):
+        img, caption, label, u_name = self._data[i]
+        return (img, caption, label, u_name)
+        # print(self._data[i])
+        # data = (img,) + (caption)
+        # return data + (label, u_name)

@@ -289,7 +289,7 @@ def main():
     logging.info("  Num steps = %d", num_train_optimization_steps)
     model.train()
     wandb.init(project="huggingface", config=vars(args))
-    wandb.watch(model, log="gradients", log_freq=max(100, args.logging_steps))
+    wandb.watch(model, log_freq=max(100, args.logging_steps))
     logging_loss = 0.0
     for epoch in range(args.epochs):
         epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
@@ -321,16 +321,15 @@ def main():
                 nb_tr_steps += 1
                 pbar.update(1)
                 mean_loss = tr_loss * args.gradient_accumulation_steps / nb_tr_steps
-                if global_step % args.logging_steps == 0:
-                    logs["loss"] = (tr_loss - logging_loss) / args.logging_steps
-                    logging_loss = tr_loss
-                    wandb.log(logs, step=global_step)
                 pbar.set_postfix_str(f"Loss: {mean_loss:.5f}")
                 if (step + 1) % args.gradient_accumulation_steps == 0:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                     scheduler.step()  # Update learning rate schedule
                     optimizer.step()
                     optimizer.zero_grad()
                     global_step += 1
+                if global_step % args.logging_steps == 0:
+                    wandb.log({"loss": mean_loss}, step=global_step)
 
     # Save a trained model
     if  n_gpu > 1 and torch.distributed.get_rank() == 0  or n_gpu <=1 :

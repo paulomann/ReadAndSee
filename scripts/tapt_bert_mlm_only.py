@@ -29,7 +29,7 @@ def get_data_collator(
 
 set_seed(42)
 bert_size = "base"
-gradient_acc_steps = 1
+gradient_acc_steps = 8
 batch_size = 32
 epochs = 100
 adam_epsilon = 1e-6
@@ -45,7 +45,7 @@ eval_dataset = get_dataset(val_path, tokenizer)
 data_collator = get_data_collator(tokenizer)
 t_total = (batch_size // gradient_acc_steps) * epochs
 print(f"====>TOTAL NUMBER OF STEPS: {t_total}")
-warmup_steps = int(t_total * 0.06)  # 10% of total steps during fine-tuning
+warmup_steps = int(t_total * 0.10)  # 10% of total steps during fine-tuning
 print(f"====>WARMUP STEPS: {warmup_steps}")
 training_args = TrainingArguments(
     output_dir=str(Path(settings.PATH_TO_BERT_MODELS_FOLDER, f"{bert_size}-TAPT")),
