@@ -3,6 +3,9 @@ import pickle
 from collections import defaultdict
 from typing import *
 
+import sentencepiece as spm
+from readorsee import settings
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -82,7 +85,7 @@ class DepressionCorpus(torch.utils.data.Dataset):
         self._subset = subset
         self._dataset = dataset
         self._ob_period = int(observation_period)
-        self._tokenizer = NLTKTokenizer()
+        self._tokenizer = TokenizerMergeVocab()
         # A list of datasets which in turn are a list
         self._raw = StratifyFacade().load_stratified_data()
         self._raw = self._raw["data_" + str(self._ob_period)][self._dataset]
@@ -239,6 +242,17 @@ class DepressionCorpus(torch.utils.data.Dataset):
             img = img_path
 
         return img, text
+
+    def preprocess_data_sentence_piece(self, img_path, text): 
+        # makes segmenter instance and loads the model file (m.model)
+        sp = spm.SentencePieceProcessor()
+        sp.load(settings.PATH_TO_SENTENCE_PIECE_MODEL)
+
+        # encode: text => id
+        txt = sp.encode_as_pieces(text)
+        img = img_path
+
+        return img, txt
 
     def preprocess_elmo(self):
         _, text, _, _ = zip(*self._data)
@@ -470,7 +484,7 @@ class DepressionCorpusTwitter(torch.utils.data.Dataset):
         self._subset = subset
         self._dataset = dataset
         self._ob_period = int(observation_period)
-        self._tokenizer = NLTKTokenizer()
+        self._tokenizer = TokenizerMergeVocab()
         # A list of datasets which in turn are a list
         self._raw = StratifyTwitterFacade().load_stratified_data()
         self._raw = self._raw["data_" + str(self._ob_period)][self._dataset]
@@ -588,14 +602,17 @@ class DepressionCorpusTwitter(torch.utils.data.Dataset):
         data = []
         for u in user_list:
             u_posts = []
+            u_name = u.username
+            label = u.questionnaire.get_binary_bdi()
+            img = ''
             for post in u.get_posts_from_qtnre_answer_date(self._ob_period):
                 text = post.tweet_text
-                label = u.questionnaire.get_binary_bdi()
-                u_name = u.username
+                #label = u.questionnaire.get_binary_bdi()
+                #u_name = u.username
                 txt = self.preprocess_data(text)
                 for word in txt:
                     u_posts.append(word)
-                img = ''
+                #img = ''
             data.append((img, u_posts, label, u_name))
 
         return data
@@ -605,6 +622,16 @@ class DepressionCorpusTwitter(torch.utils.data.Dataset):
         text = [""] if not text else text
 
         return text
+
+    def preprocess_data_sentence_piece(self, text): 
+        # makes segmenter instance and loads the model file (m.model)
+        sp = spm.SentencePieceProcessor()
+        sp.load(settings.PATH_TO_SENTENCE_PIECE_MODEL)
+
+        # encode: text => id
+        txt = sp.encode_as_pieces(text)
+
+        return txt
 
     def preprocess_elmo(self):
         _, text, _, _ = zip(*self._data)
@@ -627,7 +654,7 @@ class DepressionCorpusTwitter(torch.utils.data.Dataset):
 
         embeddings = torch.stack(
             [
-                torch.cat([e, torch.zeros((max_size - e.size(0), 300))], 0)
+                torch.cat([e.float(), torch.zeros((max_size - e.size(0), 300))], 0)
                 for e in embeddings
             ],
             dim=0,
